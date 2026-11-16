@@ -32,8 +32,8 @@ RagSystem, the NDC API docs assistant (a rebuild of the old RagDocs). This file 
 
 | ID | Feature | Needs | What it does / done when | Status |
 |---|---|---|---|---|
-| F03 | Ingestion models | F01 | The shapes passed between steps: issue (warning/error with code and line), section draft, chunk draft (breadcrumb, entities, extra, part index/count), chunk types, ingestion result with stats | in review |
-| F04 | Front matter reader | F03 | Reads the YAML header (`version`, `title`, `docType` guide or whats-new, `updated`, optional `source`). Errors: missing/unterminated header, missing field, bad docType, version differs from the upload's version | todo |
+| F03 | Ingestion models | F01 | The shapes passed between steps: issue (warning/error with code and line), section draft, chunk draft (breadcrumb, entities, extra, part index/count), chunk types, ingestion result with stats | done |
+| F04 | Front matter reader | F03 | Reads the YAML header (`version`, `title`, `docType` guide or whats-new, `updated`, optional `source`). Errors: missing/unterminated header, missing field, bad docType, version differs from the upload's version | in review |
 | F05 | Markdown section parser | F03 | Splits the body by headings into a section tree (a section ends at the next heading of any level). Blocks: paragraph, table, quote, list. Code blocks dropped, images removed, `](#anchor)` links turned into text, each with a warning | todo |
 | F44 | Markdown structure checks | F05 | Errors (422): not exactly one `#`, skipped heading level, table without header or separator. Warnings: oversize section (1,500 tokens), oversize block, endpoint without Request/Response sub-headings | todo |
 | F06 | Section classifier | F05 | Gives each section a chunk type. First match wins: route line = endpoint, workflow table = workflow, `Q1.` heading = faq, H2 chapter title = data_model / enum / errors / glossary, else guide. Child sections inherit the route | todo |
