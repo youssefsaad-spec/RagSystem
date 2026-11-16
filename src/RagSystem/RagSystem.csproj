@@ -1,3 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!-- Semantic Kernel marks TextChunker as experimental. We use it on purpose (see FEATURES.md). -->
+    <NoWarn>$(NoWarn);SKEXP0050</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SemanticKernel.Core" />
+  </ItemGroup>
+
 </Project>

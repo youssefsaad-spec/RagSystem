@@ -8,12 +8,9 @@ public class IngestionResultTests
     {
         FileName = "doc.md",
         Version = "v3",
-        SourceType = SourceTypes.Markdown,
+        Title = "NDC Portal APIs V3",
         Issues = issues,
-        Sections = [],
-        Chunks = [],
-        EntityNames = [],
-        Stats = new Dictionary<string, int>(),
+        Chunks = [new ChunkDraft(0, "text")],
     };
 
     private static ValidationIssue Warning() => new(IssueSeverity.Warning, "code.dropped", "A code block was dropped.", 12);

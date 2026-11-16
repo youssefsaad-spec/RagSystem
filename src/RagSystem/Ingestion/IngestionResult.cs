@@ -7,23 +7,12 @@ public sealed record IngestionResult
 
     public required string Version { get; init; }
 
-    /// <summary>One of <see cref="SourceTypes"/>.</summary>
-    public required string SourceType { get; init; }
-
-    /// <summary>"guide" or "whats-new" for Markdown files, null for OpenAPI files.</summary>
-    public string? DocType { get; init; }
+    /// <summary>The name shown in citations: the front matter title, or the file name for an OpenAPI file.</summary>
+    public required string Title { get; init; }
 
     public required IReadOnlyList<ValidationIssue> Issues { get; init; }
 
-    public required IReadOnlyList<SectionDraft> Sections { get; init; }
-
     public required IReadOnlyList<ChunkDraft> Chunks { get; init; }
-
-    /// <summary>Names this file adds to its version's entity list.</summary>
-    public required IReadOnlyList<string> EntityNames { get; init; }
-
-    /// <summary>Counts for the report, for example headings or endpoint sections.</summary>
-    public required IReadOnlyDictionary<string, int> Stats { get; init; }
 
     public IEnumerable<ValidationIssue> Errors => Issues.Where(i => i.Severity == IssueSeverity.Error);
 

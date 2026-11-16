@@ -4,36 +4,21 @@ namespace RagSystem.Tests.Ingestion;
 
 public class ChunkDraftTests
 {
-    private static ChunkDraft Make(string breadcrumb, string body) => new()
-    {
-        Ordinal = 0,
-        SectionIndex = 0,
-        ChunkType = ChunkTypes.Guide,
-        SectionPath = ["Doc"],
-        Title = "Doc",
-        Entities = [],
-        Extra = new Dictionary<string, object?>(),
-        PartIndex = 1,
-        PartCount = 1,
-        Breadcrumb = breadcrumb,
-        Body = body,
-    };
-
     [Fact]
-    public void Content_is_the_breadcrumb_in_brackets_then_a_new_line_then_the_body()
+    public void A_chunk_keeps_its_position_and_its_text_exactly()
     {
-        var chunk = Make("NDC Portal APIs V3 › FareCheck", "POST /api/V3/Order/FareCheck");
+        var chunk = new ChunkDraft(7, "| Field | Description |\n|---|---|\n| `a` | one<br>two |");
 
-        Assert.Equal("[NDC Portal APIs V3 › FareCheck]\nPOST /api/V3/Order/FareCheck", chunk.Content);
+        Assert.Equal(7, chunk.Ordinal);
+        Assert.Equal("| Field | Description |\n|---|---|\n| `a` | one<br>two |", chunk.Text);
     }
 
-    [Fact]
-    public void EstTokens_counts_the_whole_content_including_the_breadcrumb()
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(35, 10)]  // exactly 10.0 tokens
+    [InlineData(36, 11)]  // 10.29 rounds up
+    public void EstTokens_is_the_token_estimate_of_the_text(int length, int expected)
     {
-        // "[abc]\n" is 6 characters and the body is 29, so 35 characters = exactly 10 tokens.
-        var chunk = Make("abc", new string('x', 29));
-
-        Assert.Equal(35, chunk.Content.Length);
-        Assert.Equal(10, chunk.EstTokens);
+        Assert.Equal(expected, new ChunkDraft(0, new string('x', length)).EstTokens);
     }
 }
