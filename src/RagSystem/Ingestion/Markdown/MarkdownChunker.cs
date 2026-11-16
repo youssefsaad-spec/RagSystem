@@ -9,6 +9,8 @@ namespace RagSystem.Ingestion.Markdown;
 /// </summary>
 public sealed class MarkdownChunker(ChunkingSettings settings)
 {
+    private readonly ChunkingSettings _settings = settings.EnsureValid();
+
     public MarkdownChunker() : this(new ChunkingSettings())
     {
     }
@@ -24,9 +26,9 @@ public sealed class MarkdownChunker(ChunkingSettings settings)
         if (file.FrontMatter is null)
             return Result(fileName, version, fileName, file.Issues, []);
 
-        var lines = TextChunker.SplitMarkDownLines(file.Body, settings.MaxTokensPerLine, TokenEstimator.Estimate);
+        var lines = TextChunker.SplitMarkDownLines(file.Body, _settings.MaxTokensPerLine, TokenEstimator.Estimate);
         var pieces = TextChunker.SplitMarkdownParagraphs(
-            lines, settings.MaxTokensPerChunk, settings.OverlapTokens, chunkHeader: null, TokenEstimator.Estimate);
+            lines, _settings.MaxTokensPerChunk, _settings.OverlapTokens, chunkHeader: null, TokenEstimator.Estimate);
 
         var chunks = pieces
             .Where(piece => !string.IsNullOrWhiteSpace(piece))

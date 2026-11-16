@@ -1,11 +1,13 @@
 namespace RagSystem.Ingestion;
 
 /// <summary>
-/// How text is cut into chunks. The start values come from trying Semantic Kernel's chunker on the real files;
-/// they are meant to be tuned later (F46).
+/// How text is cut into chunks. The values live in the "Chunking" section of appsettings.json; the defaults here
+/// are the same values and are used when a value is missing. They are meant to be tuned later (F46).
 /// </summary>
 public sealed record ChunkingSettings
 {
+    public const string SectionName = "Chunking";
+
     /// <summary>Largest chunk, in estimated tokens.</summary>
     public int MaxTokensPerChunk { get; init; } = 500;
 
@@ -15,6 +17,22 @@ public sealed record ChunkingSettings
     /// </summary>
     public int MaxTokensPerLine { get; init; } = 500;
 
-    /// <summary>Tokens repeated at the start of the next chunk. 0 = no overlap.</summary>
-    public int OverlapTokens { get; init; } = 0;
+    /// <summary>
+    /// Tokens repeated at the start of the next chunk, so a sentence cut at a boundary can be found from both sides.
+    /// 50 is 10% of a chunk. 0 = no overlap.
+    /// </summary>
+    public int OverlapTokens { get; init; } = 50;
+
+    /// <summary>Returns this object, or throws when a value cannot work.</summary>
+    public ChunkingSettings EnsureValid()
+    {
+        if (MaxTokensPerChunk <= 0)
+            throw new InvalidOperationException($"{SectionName}:MaxTokensPerChunk must be above 0, but it is {MaxTokensPerChunk}.");
+        if (MaxTokensPerLine <= 0)
+            throw new InvalidOperationException($"{SectionName}:MaxTokensPerLine must be above 0, but it is {MaxTokensPerLine}.");
+        if (OverlapTokens < 0 || OverlapTokens >= MaxTokensPerChunk)
+            throw new InvalidOperationException(
+                $"{SectionName}:OverlapTokens must be from 0 up to (but not including) MaxTokensPerChunk ({MaxTokensPerChunk}), but it is {OverlapTokens}.");
+        return this;
+    }
 }

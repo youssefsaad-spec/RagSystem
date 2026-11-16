@@ -7,7 +7,8 @@ public class MarkdownChunkerTests
 {
     private const string Header = "---\nversion: v3\ntitle: \"NDC Portal APIs V3\"\ndocType: guide\nupdated: 2026-10-23\n---\n";
 
-    private static readonly ChunkingSettings Small = new() { MaxTokensPerChunk = 40, MaxTokensPerLine = 40 };
+    /// <summary>A small limit with no overlap, so a short test file needs several chunks.</summary>
+    private static readonly ChunkingSettings Small = new() { MaxTokensPerChunk = 40, MaxTokensPerLine = 40, OverlapTokens = 0 };
 
     /// <summary>A body with a heading, many paragraphs and a table, long enough to need several chunks at a small limit.</summary>
     private static string Body()
@@ -24,6 +25,27 @@ public class MarkdownChunkerTests
     private static string WithoutWhitespace(string text) => string.Concat(text.Where(c => !char.IsWhiteSpace(c)));
 
     private static string AllText(IngestionResult result) => string.Concat(result.Chunks.Select(c => c.Text));
+
+    /// <summary>
+    /// Checks that the chunks, in order, are slices of the document that together cover it from the first character
+    /// to the last with no gap. Overlap (a chunk starting before the previous one ends) is allowed.
+    /// </summary>
+    private static void AssertCovers(string body, IReadOnlyList<ChunkDraft> chunks)
+    {
+        var document = WithoutWhitespace(body);
+        var previousStart = 0;
+        var coveredUpTo = 0;
+        foreach (var chunk in chunks)
+        {
+            var text = WithoutWhitespace(chunk.Text);
+            var at = document.IndexOf(text, previousStart, StringComparison.Ordinal);
+            Assert.True(at >= 0, $"chunk {chunk.Ordinal} is not a piece of the document");
+            Assert.True(at <= coveredUpTo, $"text is missing between chunk {chunk.Ordinal - 1} and chunk {chunk.Ordinal}");
+            previousStart = at;
+            coveredUpTo = Math.Max(coveredUpTo, at + text.Length);
+        }
+        Assert.Equal(document.Length, coveredUpTo);
+    }
 
     [Fact]
     public void A_valid_file_gives_its_title_version_file_name_and_no_issues()
@@ -77,7 +99,7 @@ public class MarkdownChunkerTests
     }
 
     [Fact]
-    public void Cutting_loses_no_text_and_keeps_the_order()
+    public void Without_overlap_cutting_loses_no_text_and_the_chunks_joined_give_the_body()
     {
         var body = Body();
 
@@ -87,10 +109,38 @@ public class MarkdownChunkerTests
     }
 
     [Fact]
+    public void With_an_overlap_each_chunk_starts_with_words_repeated_from_the_end_of_the_previous_one()
+    {
+        var settings = Small with { OverlapTokens = 12 };
+
+        var withOverlap = new MarkdownChunker(settings).Chunk("ndc.md", Header + Body(), "v3");
+        var without = new MarkdownChunker(Small).Chunk("ndc.md", Header + Body(), "v3");
+
+        Assert.True(withOverlap.Chunks.Count > without.Chunks.Count);
+        Assert.All(withOverlap.Chunks.Skip(1), chunk =>
+        {
+            var firstWords = string.Join(' ', chunk.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Take(3));
+            var previous = withOverlap.Chunks[chunk.Ordinal - 1].Text;
+            Assert.Contains(firstWords, string.Join(' ', previous.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
+        });
+        Assert.All(withOverlap.Chunks, c => Assert.True(c.EstTokens <= settings.MaxTokensPerChunk));
+    }
+
+    [Fact]
+    public void With_an_overlap_no_text_is_lost_either()
+    {
+        var body = Body();
+
+        var result = new MarkdownChunker(Small with { OverlapTokens = 12 }).Chunk("ndc.md", Header + body, "v3");
+
+        AssertCovers(body, result.Chunks);
+    }
+
+    [Fact]
     public void The_same_file_twice_gives_the_same_chunks()
     {
-        var first = new MarkdownChunker(Small).Chunk("ndc.md", Header + Body(), "v3");
-        var second = new MarkdownChunker(Small).Chunk("ndc.md", Header + Body(), "v3");
+        var first = new MarkdownChunker(Small with { OverlapTokens = 12 }).Chunk("ndc.md", Header + Body(), "v3");
+        var second = new MarkdownChunker(Small with { OverlapTokens = 12 }).Chunk("ndc.md", Header + Body(), "v3");
 
         Assert.Equal(first.Chunks, second.Chunks);
     }
@@ -116,14 +166,21 @@ public class MarkdownChunkerTests
         Assert.NotEmpty(result.Chunks);
     }
 
+    [Fact]
+    public void Settings_that_cannot_work_are_refused_when_the_chunker_is_created()
+    {
+        Assert.Throws<InvalidOperationException>(() => new MarkdownChunker(new ChunkingSettings { OverlapTokens = 500 }));
+    }
+
     [Theory]
     [InlineData(@"content\v2\ndc-portal-apis-v2.md", "v2")]
     [InlineData(@"content\v3\ndc-portal-apis-v3.md", "v3")]
     [InlineData(@"content\v3\whats-new-v3.md", "v3")]
-    public void The_real_documentation_files_are_cut_within_the_limit_and_without_losing_text(string path, string version)
+    public void The_real_documentation_files_are_cut_within_the_limit_with_overlap_and_without_losing_text(string path, string version)
     {
         var text = TestFiles.ReadAllText(path);
         var settings = new ChunkingSettings();
+        Assert.Equal(50, settings.OverlapTokens);
 
         var result = new MarkdownChunker(settings).Chunk(Path.GetFileName(path), text, version);
 
@@ -133,8 +190,6 @@ public class MarkdownChunkerTests
         Assert.All(result.Chunks, c => Assert.True(c.EstTokens <= settings.MaxTokensPerChunk,
             $"chunk {c.Ordinal} has {c.EstTokens} tokens"));
         Assert.All(result.Chunks, c => Assert.False(string.IsNullOrWhiteSpace(c.Text)));
-
-        var body = FrontMatterReader.Read(text, version).Body;
-        Assert.Equal(WithoutWhitespace(body), WithoutWhitespace(AllText(result)));
+        AssertCovers(FrontMatterReader.Read(text, version).Body, result.Chunks);
     }
 }
