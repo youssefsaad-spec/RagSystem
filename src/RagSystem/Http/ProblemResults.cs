@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Mvc;
+
 namespace RagSystem.Http;
 
 /// <summary>
@@ -6,10 +8,10 @@ namespace RagSystem.Http;
 /// </summary>
 public static class ProblemResults
 {
-    public static IResult Problem(int status, string reason, string title, string detail) =>
-        Results.Problem(
-            statusCode: status,
-            title: title,
-            detail: detail,
-            extensions: new Dictionary<string, object?> { ["reason"] = reason });
+    public static IActionResult Problem(int status, string reason, string title, string detail)
+    {
+        var problem = new ProblemDetails { Status = status, Title = title, Detail = detail };
+        problem.Extensions["reason"] = reason;
+        return new ObjectResult(problem) { StatusCode = status, ContentTypes = { "application/problem+json" } };
+    }
 }

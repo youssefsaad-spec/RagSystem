@@ -1,0 +1,31 @@
+# Postgres with the pgvector extension, for local use. More services (Ollama, the app) are added by later features.
+#
+#   docker compose up -d postgres
+#
+# Local use only: the port is bound to 127.0.0.1 and the default password below is the one in appsettings.Development.json.
+# To use another password, set POSTGRES_PASSWORD in the environment (and the connection string of the app to match).
+# The image tag and digest are pinned (same image as the old RagDocs).
+
+name: ragsystem
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg17@sha256:b513c48566e4777cd3370451400000c78eda6a08131d68f4c31d4a76f27bd8fd
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-ragsystem}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-ragsystem_dev}"
+      POSTGRES_DB: "${POSTGRES_DB:-ragsystem}"
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

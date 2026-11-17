@@ -5,7 +5,7 @@ using RagSystem.Ingestion.Markdown;
 
 namespace RagSystem.Tests.Ingestion;
 
-public class ChunkingSettingsTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+public class ChunkingSettingsTests(TestApp factory) : IClassFixture<TestApp>
 {
     [Fact]
     public void The_values_come_from_appsettings_json()

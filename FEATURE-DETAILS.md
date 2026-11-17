@@ -34,6 +34,7 @@ F01 and F02 did not change. Removed (not built): old F05, F06, F07, F08, F15, F4
 
 - **Settings:** each feature owns one small settings class bound from its own appsettings section. No regexes in settings (patterns live in code); values that never change are constants. Secrets come from environment variables, never from appsettings.
 - **Version:** `v2` or `v3`, lower case, a hard filter everywhere. Anything else is `400 unknown_version`.
+- **Endpoints are regular MVC controllers** (`[ApiController]` classes, all in the top-level `Controllers\` folder, mapped with `MapControllers()`), not minimal APIs. Decided 2026-11-17. `/health` stays the built-in health check.
 - **Errors:** always `application/problem+json` with a `reason` field (F03).
 - **Never log:** raw user text (only the PII-redacted question), API keys or hashes, answer text.
 - **No content hash and no "unchanged" check** anywhere (see `EXCLUDED.md`).
@@ -103,7 +104,7 @@ Old: `Api\Endpoints\DocumentEndpoints.cs`, `scripts\ingest.sh`.
 - **Review checkpoint.** Input files: `content\v2\ndc-portal-apis-v2.md`, `content\v3\ndc-portal-apis-v3.md`, `content\v3\whats-new-v3.md`, `resources\V2\OffersV2.swagger.json`, `resources\v3\OffersV3.swagger.json`. We read the real chunks together before any database work.
 - **Checks in tests:** the three Markdown files give 0 errors; every chunk is within the limit and not empty; the same file twice gives the same chunks; each Swagger file passes the version check for its own version and fails it for the other.
 - To read chunks together: the report returns them, or add a small script that writes them to a text file.
-- **Built (in review):** `Documents\DocumentEndpoints.cs`, `DryRunReport.cs`, `Versions.cs`; `Http\ProblemResults.cs` (the small helper part of F03, so F03 stays `todo` for the exception handler); `scripts\dry-run.ps1` writes the report and chunks of one file to a text file (output folder `dryrun-output\`, git-ignored). 400 reasons: `unknown_version`, `not_multipart`, `no_file`. Without `dryRun=true` the answer is `501 not_implemented` until F14/F16. The passed version is not case sensitive (`V3` is read as `v3`); it is stored and shown in lower case.
+- **Built (in review):** the upload takes the file as `IFormFile? file` (so Swagger shows a file picker; if the form has no field named `file`, its first file is used). `SuppressConsumesConstraintForFormFileParameters` is on, so a request that is not multipart still reaches the action and gets `400 not_multipart` (without it ASP.NET answers 415 first). `Controllers\DocumentsController.cs`, `DryRunReport.cs`, `Versions.cs`; `Http\ProblemResults.cs` (the small helper part of F03, so F03 stays `todo` for the exception handler); `scripts\dry-run.ps1` writes the report and chunks of one file to a text file (output folder `dryrun-output\`, git-ignored). 400 reasons: `unknown_version`, `not_multipart`, `no_file`. Without `dryRun=true` the answer is `501 not_implemented` until F14/F16. The passed version is not case sensitive (`V3` is read as `v3`); it is stored and shown in lower case.
 
 ---
 
@@ -117,6 +118,8 @@ Old: `docker-compose.yml`, `scripts\postgres-init.sql`, `Persistence\RagDbContex
 - Packages (old list): `Npgsql.EntityFrameworkCore.PostgreSQL`, `Pgvector`, `Pgvector.EntityFrameworkCore`, `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`, plus `Microsoft.EntityFrameworkCore.Design` and the `dotnet-ef` local tool for migrations.
 - Tests that need a database: skipped unless an environment variable (for example `RAGSYSTEM_TEST_DB`) points at a Postgres with pgvector; each test creates and drops its own database.
 - Needs Docker: ask before starting it.
+- **Built (in review):** `docker-compose.yml` (postgres only; same pinned image as the old project), `scripts\postgres-init.sql`, `.config\dotnet-tools.json` (`dotnet-ef` 9.0.23), `Database\` (`RagDbContext`, `DatabaseSettings`, `DatabaseServices`, design-time `RagDbContextFactory`), migration `EnableVector`. Packages for `net9.0`: Npgsql.EntityFrameworkCore.PostgreSQL 9.0.4, Pgvector 0.3.2, Pgvector.EntityFrameworkCore 0.3.0, HealthChecks.EntityFrameworkCore 9.0.23, EF Core Design 9.0.23 (the old project used the 10.x line). The connection string is read when the database is first used, so the app starts without one; with `MigrateOnStartup` and no string it stops with a message naming `ConnectionStrings__Db`. `/health` answers 200 `Healthy` or 503 `Unhealthy`; with no connection string at all it answers 500 (a setup mistake, not an unhealthy database). Database tests run when `RAGSYSTEM_TEST_DB` is set (a connection string to a Postgres with pgvector, any database on it); each test makes and drops its own database. Run: set the variable, then `dotnet test`.
+- **Local start:** `docker compose up -d postgres`, then `dotnet run --project src\RagSystem --launch-profile http`. The local settings are in `src\RagSystemppsettings.Development.json` (`ConnectionStrings:Db` with the local dev password `ragsystem_dev`, which is also the compose default, and `Database:MigrateOnStartup` true); the Ollama values are in `appsettings.json`. The app migrates the database at start and `/health` answers 200 on `http://localhost:5289`. **Decision (2026-11-17, yours):** the local dev password is in a committed appsettings file. That is fine only for this local container (port bound to 127.0.0.1); anywhere else the connection string must come from `ConnectionStrings__Db`. Tests run in the `Testing` environment (`tests\RagSystem.Tests\TestApp.cs`), so they never read the Development file.
 
 ### F11 Document tables
 Old: `Persistence\Entities.cs`; PLAN §5. Simplified: no content hash, no sections table, no chunk type, entities or extra data.
@@ -124,6 +127,7 @@ Old: `Persistence\Entities.cs`; PLAN §5. Simplified: no content hash, no sectio
 - `chunks`: id, document_id (cascade), version, ordinal, content (the chunk text as cut), est_tokens, embedding `vector(1024)`, embedding_model, created_at. Index on (version).
 - **No vector index**: a few hundred chunks per version, an exact scan is fast and finds everything.
 - `corpus_state`: version (primary key), revision. Bumped whenever a version's content changes (store or delete); the semantic cache (F35) is keyed on it.
+- **Built (in review):** `Database\Document.cs` (with `DocumentStatus`), `Chunk.cs`, `CorpusState.cs`, configured in `RagDbContext`; migration `DocumentTables`. Columns are snake_case by one rule in the context. `id` is a `uuid` made by the app. `status` is stored as text (`Processing`, `Ready`, `Failed`). `RagDbContext.EmbeddingDimensions` = 1024 is the one constant the Ollama settings are checked against. Indexes: unique `(version, file_name)`, `chunks(version)`, and the one EF adds for the `document_id` foreign key. `chunk_count` is 0 until the document is Ready.
 
 ### F12 Ollama embedding client
 Old: `Ollama\OllamaEmbeddingGenerator.cs`, `OllamaHttp.cs`, `Embedding\OllamaErrors.cs`; PLAN §15.
@@ -133,6 +137,7 @@ Old: `Ollama\OllamaEmbeddingGenerator.cs`, `OllamaHttp.cs`, `Embedding\OllamaErr
 - Optional: `EmbeddingOnCpu` (sends `num_gpu: 0`).
 - **Simpler:** plain `HttpClient` class, no `Microsoft.Extensions.AI` abstraction unless two real implementations appear.
 - Nothing was ever verified against a captured real response in the old code except the live run (PLAN §15 "Verified live").
+- **Built (in review):** `Ollama\` (`OllamaSettings`, `OllamaException` with kind and retry-after, `OllamaHttp` (shared by later Ollama calls), `OllamaEmbeddingClient`, `OllamaServices`); settings section `Ollama` (`BaseUrl`, `EmbeddingModel`, `EmbeddingDimensions` 1024, `EmbeddingOnCpu`, `TimeoutSeconds` 120). A wrong value (including dimensions other than the database column's) stops the app at start. `keep_alive` is not sent (not in the spec). A timeout counts as transient; the caller's own cancellation is not an Ollama failure. **Not verified against a real Ollama yet**: the tests use a fake server, and the request/answer shape is from the spec and the old code. Check it with the real model when Ollama is running (for example at F15).
 
 ### F13 Batch embedder
 Old: `Embedding\DocumentEmbedder.cs`, `Core\Limits\BatchRetryPolicy.cs`; PLAN §4.2.
@@ -141,6 +146,7 @@ Old: `Embedding\DocumentEmbedder.cs`, `Core\Limits\BatchRetryPolicy.cs`; PLAN §
 - Every returned vector is length-checked and normalised to unit length (skipped when already within 1e-4).
 - Text embedded per chunk: the chunk text as it is (no instruction prefix; queries differ on purpose, F17).
 - Output: one vector per text, in order.
+- **Built (in review):** `Ollama\EmbeddingBatches.cs` (the batch plan), `UnitVector.cs`, `BatchEmbedder.cs`. 7 attempts per batch, waits 2, 4, 8, 16, 32, 60 s (a Retry-After from the server is used instead, not capped). When it gives up the error is an `OllamaException` that says which batch and keeps the cause. The wait is injectable so tests do not really wait. Registered as transient (the typed `HttpClient` is not meant to live forever in a singleton).
 
 ### F14 Submit document
 Old: `Ingestion\DocumentIngestionService.SubmitAsync`; PLAN §4.2. **Without** the "unchanged" skip.
@@ -371,6 +377,7 @@ Old: `web\` (Angular 22, `web\README.md`). Large: **split when we reach it**, su
 
 ### F42 Own API docs
 Old: `Api\OpenApi\OpenApiExtensions.cs`; PLAN §14 #13. `/openapi/v1.json` with an `X-Api-Key` scheme and a Swagger UI at `/swagger`, both anonymous and only mapped when `OpenApi:Enabled` is true. Needs `Microsoft.AspNetCore.OpenApi` and a Swagger UI package (the old project used `Swashbuckle.AspNetCore.SwaggerUI`; note the old conflict with `Microsoft.OpenApi` 2.x, F07). Choose the packages together at F42.
+- **Built early (2026-11-17, you asked for it to test uploads): everything except the key scheme.** `ApiDocs\` (`ApiDocsSettings`, `ApiDocsServices`); settings `OpenApi:Enabled` (false in `appsettings.json`, true in `appsettings.Development.json`). `/openapi/v1.json` and the Swagger page at `/swagger`, anonymous, mapped only when enabled. Packages: `Swashbuckle.AspNetCore.SwaggerGen` and `SwaggerUI` 10.3.1 (they support `net9.0` and use `Microsoft.OpenApi` 2.x, the same line as the chunker). **Not** `Microsoft.AspNetCore.OpenApi`: its 9.x release depends on `Microsoft.OpenApi` 1.x, which clashes with the 2.x the chunker needs. **Still to do with F29:** the `X-Api-Key` security scheme (and an Authorize button) once keys exist. Every new controller shows up on its own; put `[ProducesResponseType]` on actions so the answers are listed.
 
 ### F43 Project docs
 Old: `CLAUDE.md`, `docs\MD-AUTHORING-RULES.md`. A short README (run, test, ingest) and short upload rules: which files are accepted (.md with a front matter header, OpenAPI .json), the header fields, and the errors a file can get. The old authoring rules (route lines, workflow tables) no longer apply. `tools\refine-docs` (the Python script that makes `content\`) is **not** rebuilt: we use `content\` as it is.

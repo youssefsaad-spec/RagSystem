@@ -11,6 +11,7 @@ RagSystem, the NDC API docs assistant (a rebuild of the old RagDocs). This file 
 - **Chunking is not our own code.** Markdown and OpenAPI text is cut by Semantic Kernel's `TextChunker` (package `Microsoft.SemanticKernel.Core`) and stored with its vector exactly as cut. Size, line size and overlap are in the `Chunking` section of `appsettings.json` (500, 500, 100).
 - **OpenAPI files** are read with `Microsoft.OpenApi`. Each operation and each component schema becomes its own text, which is cut by the same chunker.
 - **Not built:** content hashes and "unchanged" checks, our own chunking, entity ranking, chunk types, sections, source and doc types. See `EXCLUDED.md`.
+- **Endpoints are regular MVC controllers** (`[ApiController]`), not minimal APIs. All controllers live in the `Controllers\` folder.
 - **Small choices:** token estimate is `chars / 3.5`; the file header is read by our own small parser (no YAML package); packages are added as a feature needs them, and anything outside the old approved list (PLAN.md section 3) is asked first.
 
 ## Working rules
@@ -40,18 +41,18 @@ RagSystem, the NDC API docs assistant (a rebuild of the old RagDocs). This file 
 | F04 | Ingestion models | F01 | The shapes passed between steps: issue (severity, code, message, line), chunk (position + text exactly as cut), ingestion result (file name, version, title, issues, chunks) | done |
 | F05 | Front matter reader | F04 | Reads the file header (`version`, `title`, `docType`, `updated`, optional `source`) with our own small parser. Errors: missing/unterminated header, missing field, bad docType, version differs from the upload's version | done |
 | F06 | Markdown chunker | F02, F04, F05 | Reads the header (F05), then cuts the body with Semantic Kernel's `TextChunker` (`SplitMarkDownLines`, then `SplitMarkdownParagraphs`), with F02 as the token counter. Chunk size, line size and overlap come from `appsettings.json` (500, 500, 100); a wrong value stops the app at start. Chunks are kept exactly as cut. Adds package `Microsoft.SemanticKernel.Core` | done |
-| F07 | OpenAPI chunker | F02, F04, F06 | Reads the swagger JSON with `Microsoft.OpenApi`. Each operation and each component schema is written back as its own JSON text with `$ref`s kept, then cut with the same `TextChunker` if over the limit, using the route or the schema name as the chunk header. One check: every path starts with `/api/V{n}/` for the upload's version | in review |
-| F08 | Document processor | F06, F07 | Picks the chunker by extension (`.md`, `.json`), rejects other types (415) | in review |
-| F09 | Dry-run endpoint | F08, F03 | `POST /api/documents?version=v3&dryRun=true` returns the report (errors, warnings) and the chunks, without storing. **Review checkpoint:** we read the real chunks of `content/` together before any database work | in review |
+| F07 | OpenAPI chunker | F02, F04, F06 | Reads the swagger JSON with `Microsoft.OpenApi`. Each operation and each component schema is written back as its own JSON text with `$ref`s kept, then cut with the same `TextChunker` if over the limit, using the route or the schema name as the chunk header. One check: every path starts with `/api/V{n}/` for the upload's version | done |
+| F08 | Document processor | F06, F07 | Picks the chunker by extension (`.md`, `.json`), rejects other types (415) | done |
+| F09 | Dry-run endpoint | F08, F03 | `POST /api/documents?version=v3&dryRun=true` returns the report (errors, warnings) and the chunks, without storing. **Review checkpoint:** we read the real chunks of `content/` together before any database work | done |
 
 ## C. Storing documents
 
 | ID | Feature | Needs | What it does / done when | Status |
 |---|---|---|---|---|
-| F10 | Database setup | F01 | Postgres + pgvector in a compose file, EF Core context, migration runs (`MigrateOnStartup`), `/health` checks the database | todo |
-| F11 | Document tables | F10 | Tables `documents` (with title and status), `chunks` (text, position, vector column 1,024), `corpus_state` | todo |
-| F12 | Ollama embedding client | F01 | Calls Ollama `/api/embed` over `HttpClient`, checks the vector size (1,024), classifies failures (fatal / rate-limited / transient) | todo |
-| F13 | Batch embedder | F02, F12 | Splits texts into batches (32 items / 6,000 tokens), retries only the failed batch with back-off, normalises vectors | todo |
+| F10 | Database setup | F01 | Postgres + pgvector in a compose file, EF Core context, migration runs (`MigrateOnStartup`), `/health` checks the database | in review |
+| F11 | Document tables | F10 | Tables `documents` (with title and status), `chunks` (text, position, vector column 1,024), `corpus_state` | in review |
+| F12 | Ollama embedding client | F01 | Calls Ollama `/api/embed` over `HttpClient`, checks the vector size (1,024), classifies failures (fatal / rate-limited / transient) | in review |
+| F13 | Batch embedder | F02, F12 | Splits texts into batches (32 items / 6,000 tokens), retries only the failed batch with back-off, normalises vectors | in review |
 | F14 | Submit document | F08, F11 | Validates, refuses a file still Processing (409), creates the document row as Processing, enqueues. Same version + file name replaces | todo |
 | F15 | Queue and worker | F13, F14 | In-memory queue and background worker. Embeds the chunks as they are, replaces old chunks in one transaction, bumps the corpus revision, marks Failed on error. Interrupted jobs are marked Failed at startup | todo |
 | F16 | Document endpoints | F09, F14, F15 | Upload (200 / 202 / 409 / 413 over 10 MB / 415 / 422), list, get, chunks (paged), delete | todo |
@@ -100,5 +101,5 @@ RagSystem, the NDC API docs assistant (a rebuild of the old RagDocs). This file 
 | F39 | Langfuse exporter | F38 | LLM spans only to Langfuse (HTTP, filtered, session and user on every span); chat keeps working if Langfuse is down | todo |
 | F40 | Docker | F16, F25 | Dockerfile, full compose (api, postgres, ollama, model pull, dashboard), GPU override, Langfuse compose, ingest script | todo |
 | F41 | Web front end | F36, F29, F16 | Angular app: client chat, admin documents and clients. Large: split into parts when we reach it (see details) | todo |
-| F42 | Own API docs | F16 | `/openapi/v1.json` and Swagger UI, only when enabled by a setting | todo |
+| F42 | Own API docs | F16 | `/openapi/v1.json` and Swagger UI, only when enabled by a setting. **Built early** (Swashbuckle 10.3.1); the `X-Api-Key` scheme waits for F29 | in review |
 | F43 | Project docs | F16 | README (run, test, ingest) and short upload rules (front matter fields, accepted file types) | todo |

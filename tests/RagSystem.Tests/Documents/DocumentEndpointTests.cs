@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace RagSystem.Tests.Documents;
 
-public class DocumentEndpointTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+public class DocumentEndpointTests(TestApp factory) : IClassFixture<TestApp>
 {
     private const int MaxTokensPerChunk = 500;
 
@@ -135,6 +135,17 @@ public class DocumentEndpointTests(WebApplicationFactory<Program> factory) : ICl
         var response = await Post("?version=v3&dryRun=true", JsonContent.Create(new { file = "x" }));
 
         await AssertProblem(response, HttpStatusCode.BadRequest, "not_multipart");
+    }
+
+    [Fact]
+    public async Task A_multipart_body_that_is_broken_is_a_400_and_not_a_server_error()
+    {
+        var content = new ByteArrayContent("this is not a multipart body"u8.ToArray());
+        content.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data; boundary=abc");
+
+        var response = await Post("?version=v3&dryRun=true", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

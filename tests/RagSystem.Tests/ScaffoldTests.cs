@@ -1,8 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace RagSystem.Tests;
 
-public class ScaffoldTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+public class ScaffoldTests(TestApp factory) : IClassFixture<TestApp>
 {
     [Fact]
     public async Task App_starts_and_answers_requests()
