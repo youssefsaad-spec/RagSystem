@@ -1,11 +1,11 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
-using RagSystem.Ollama.Exceptions;
-using RagSystem.Ollama.Services;
-using RagSystem.Ollama.Settings;
+using RagSystem.Embeddings.Exceptions;
+using RagSystem.Embeddings.Services;
+using RagSystem.Tests.Ollama;
 
-namespace RagSystem.Tests.Ollama.Services;
+namespace RagSystem.Tests.Embeddings.Services;
 
 public class BatchEmbedderTests
 {
@@ -13,7 +13,7 @@ public class BatchEmbedderTests
     private readonly List<TimeSpan> _waits = [];
 
     private BatchEmbedder EmbedderFor(StubHandler handler) =>
-        new(new OllamaEmbeddingClient(new HttpClient(handler) { BaseAddress = new Uri("http://ollama.test") }, new OllamaSettings()),
+        new(OllamaTestGenerators.For(handler),
             NullLogger<BatchEmbedder>.Instance,
             (wait, _) =>
             {
@@ -162,14 +162,14 @@ public class BatchEmbedderTests
     {
         var handler = new StubHandler((_, _) => Task.FromResult(Failure(HttpStatusCode.ServiceUnavailable)));
 
-        var error = await Assert.ThrowsAsync<OllamaException>(() => EmbedderFor(handler).EmbedAsync(Texts(1)));
+        var error = await Assert.ThrowsAsync<EmbeddingException>(() => EmbedderFor(handler).EmbedAsync(Texts(1)));
 
         Assert.Equal(7, handler.Requests.Count);
         Assert.Equal(6, _waits.Count);
         Assert.Contains("Gave up on batch 1/1 after 7 attempts", error.Message);
         Assert.Contains("503", error.Message);
-        Assert.Equal(OllamaFailureKind.Transient, error.Kind);
-        Assert.IsType<OllamaException>(error.InnerException);
+        Assert.Equal(EmbeddingFailureKind.Transient, error.Kind);
+        Assert.IsType<EmbeddingException>(error.InnerException);
     }
 
     [Fact]
@@ -177,9 +177,9 @@ public class BatchEmbedderTests
     {
         var handler = StubHandler.Json(HttpStatusCode.NotFound, "{\"error\":\"model not found\"}");
 
-        var error = await Assert.ThrowsAsync<OllamaException>(() => EmbedderFor(handler).EmbedAsync(Texts(1)));
+        var error = await Assert.ThrowsAsync<EmbeddingException>(() => EmbedderFor(handler).EmbedAsync(Texts(1)));
 
-        Assert.Equal(OllamaFailureKind.Fatal, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Fatal, error.Kind);
         Assert.Single(handler.Requests);
         Assert.Empty(_waits);
     }
@@ -189,9 +189,9 @@ public class BatchEmbedderTests
     {
         var handler = StubHandler.Json(HttpStatusCode.OK, StubHandler.EmbeddingsJson([StubHandler.Vector(1, length: 768)]));
 
-        var error = await Assert.ThrowsAsync<OllamaException>(() => EmbedderFor(handler).EmbedAsync(Texts(1)));
+        var error = await Assert.ThrowsAsync<EmbeddingException>(() => EmbedderFor(handler).EmbedAsync(Texts(1)));
 
-        Assert.Equal(OllamaFailureKind.Fatal, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Fatal, error.Kind);
         Assert.Single(handler.Requests);
     }
 
@@ -202,7 +202,7 @@ public class BatchEmbedderTests
         var handler = new StubHandler((request, _) =>
             Task.FromResult(++calls == 2 ? Failure(HttpStatusCode.BadRequest) : Answer(request)));
 
-        await Assert.ThrowsAsync<OllamaException>(() => EmbedderFor(handler).EmbedAsync(Texts(100)));
+        await Assert.ThrowsAsync<EmbeddingException>(() => EmbedderFor(handler).EmbedAsync(Texts(100)));
 
         Assert.Equal(2, handler.Requests.Count);
     }
@@ -213,7 +213,7 @@ public class BatchEmbedderTests
         using var source = new CancellationTokenSource();
         var handler = new StubHandler((_, _) => Task.FromResult(Failure(HttpStatusCode.ServiceUnavailable)));
         var embedder = new BatchEmbedder(
-            new OllamaEmbeddingClient(new HttpClient(handler) { BaseAddress = new Uri("http://ollama.test") }, new OllamaSettings()),
+            OllamaTestGenerators.For(handler),
             NullLogger<BatchEmbedder>.Instance,
             async (_, token) =>
             {

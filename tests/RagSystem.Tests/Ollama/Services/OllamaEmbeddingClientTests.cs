@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using RagSystem.Ollama.Exceptions;
+using RagSystem.Embeddings.Exceptions;
 using RagSystem.Ollama.Services;
 using RagSystem.Ollama.Settings;
 
@@ -14,10 +14,10 @@ public class OllamaEmbeddingClientTests
     private static StubHandler Embeds(params float[][] vectors) =>
         StubHandler.Json(HttpStatusCode.OK, StubHandler.EmbeddingsJson(vectors));
 
-    private static async Task<OllamaException> FailureOf(StubHandler handler, int texts = 1)
+    private static async Task<EmbeddingException> FailureOf(StubHandler handler, int texts = 1)
     {
         var client = ClientFor(handler);
-        return await Assert.ThrowsAsync<OllamaException>(() => client.EmbedAsync(Enumerable.Repeat("text", texts).ToList()));
+        return await Assert.ThrowsAsync<EmbeddingException>(() => client.EmbedAsync(Enumerable.Repeat("text", texts).ToList()));
     }
 
     // ---- The request ----
@@ -89,7 +89,7 @@ public class OllamaEmbeddingClientTests
     {
         var error = await FailureOf(Embeds(StubHandler.Vector(1, length: 768)));
 
-        Assert.Equal(OllamaFailureKind.Fatal, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Fatal, error.Kind);
         Assert.Contains("1024", error.Message);
         Assert.Contains("768", error.Message);
     }
@@ -99,7 +99,7 @@ public class OllamaEmbeddingClientTests
     {
         var error = await FailureOf(Embeds(StubHandler.Vector(1)), texts: 2);
 
-        Assert.Equal(OllamaFailureKind.Fatal, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Fatal, error.Kind);
         Assert.Contains("1 embeddings for 2 texts", error.Message);
     }
 
@@ -110,7 +110,7 @@ public class OllamaEmbeddingClientTests
     {
         var error = await FailureOf(StubHandler.Json(HttpStatusCode.OK, json));
 
-        Assert.Equal(OllamaFailureKind.Fatal, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Fatal, error.Kind);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class OllamaEmbeddingClientTests
     {
         var error = await FailureOf(StubHandler.Json(HttpStatusCode.OK, "<html>proxy page</html>"));
 
-        Assert.Equal(OllamaFailureKind.Fatal, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Fatal, error.Kind);
     }
 
     // ---- Failures ----
@@ -128,7 +128,7 @@ public class OllamaEmbeddingClientTests
     {
         var error = await FailureOf(StubHandler.Json(HttpStatusCode.NotFound, "{\"error\":\"model \\\"qwen3-embedding:0.6b\\\" not found, try pulling it first\"}"));
 
-        Assert.Equal(OllamaFailureKind.Fatal, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Fatal, error.Kind);
         Assert.Contains("404", error.Message);
         Assert.Contains("not found", error.Message);
     }
@@ -141,7 +141,7 @@ public class OllamaEmbeddingClientTests
     {
         var error = await FailureOf(StubHandler.Json(status, "{\"error\":\"nope\"}"));
 
-        Assert.Equal(OllamaFailureKind.Fatal, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Fatal, error.Kind);
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class OllamaEmbeddingClientTests
 
         var error = await FailureOf(handler);
 
-        Assert.Equal(OllamaFailureKind.RateLimited, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.RateLimited, error.Kind);
         Assert.Equal(TimeSpan.FromSeconds(7), error.RetryAfter);
     }
 
@@ -165,7 +165,7 @@ public class OllamaEmbeddingClientTests
     {
         var error = await FailureOf(StubHandler.Json(HttpStatusCode.TooManyRequests, "{}"));
 
-        Assert.Equal(OllamaFailureKind.RateLimited, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.RateLimited, error.Kind);
         Assert.Null(error.RetryAfter);
     }
 
@@ -177,7 +177,7 @@ public class OllamaEmbeddingClientTests
     {
         var error = await FailureOf(StubHandler.Json(status, "{\"error\":\"busy\"}"));
 
-        Assert.Equal(OllamaFailureKind.Transient, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Transient, error.Kind);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class OllamaEmbeddingClientTests
     {
         var error = await FailureOf(StubHandler.Throws(new HttpRequestException("Connection refused")));
 
-        Assert.Equal(OllamaFailureKind.Transient, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Transient, error.Kind);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class OllamaEmbeddingClientTests
         // HttpClient reports its own timeout as a cancellation that the caller did not ask for.
         var error = await FailureOf(StubHandler.Throws(new TaskCanceledException("timed out")));
 
-        Assert.Equal(OllamaFailureKind.Transient, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Transient, error.Kind);
         Assert.Contains("timed out", error.Message);
     }
 

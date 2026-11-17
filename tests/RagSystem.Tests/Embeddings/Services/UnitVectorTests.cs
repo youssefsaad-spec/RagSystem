@@ -1,6 +1,6 @@
-using RagSystem.Ollama.Services;
+using RagSystem.Embeddings.Services;
 
-namespace RagSystem.Tests.Ollama.Services;
+namespace RagSystem.Tests.Embeddings.Services;
 
 public class UnitVectorTests
 {

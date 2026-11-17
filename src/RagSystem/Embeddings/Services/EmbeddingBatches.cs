@@ -1,8 +1,8 @@
 using RagSystem.Text;
 
-namespace RagSystem.Ollama.Services;
+namespace RagSystem.Embeddings.Services;
 
-/// <summary>Decides which consecutive texts are sent to Ollama together.</summary>
+/// <summary>Decides which consecutive texts are sent to the embedding service together.</summary>
 public static class EmbeddingBatches
 {
     public const int MaxItems = 32;

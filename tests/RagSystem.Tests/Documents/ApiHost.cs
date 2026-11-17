@@ -51,6 +51,7 @@ public sealed class ApiHost : IAsyncDisposable
         {
             builder.UseSetting("ConnectionStrings:Db", database.ConnectionString);
             builder.UseSetting("Database:MigrateOnStartup", "true");
+            builder.UseSetting("Embeddings:Provider", "Ollama"); // the fake Ollama below stands in for the embedding service
             builder.ConfigureTestServices(services =>
             {
                 services.AddHttpClient<OllamaEmbeddingClient>().ConfigurePrimaryHttpMessageHandler(() => stub);

@@ -4,8 +4,8 @@ using RagSystem.Database;
 using RagSystem.Database.Entities;
 using RagSystem.Documents.Models;
 using RagSystem.Documents.Services;
-using RagSystem.Ollama.Services;
-using RagSystem.Ollama.Settings;
+using RagSystem.Embeddings.Services;
+using RagSystem.Embeddings.Settings;
 
 namespace RagSystem.Documents.Workers;
 
@@ -17,7 +17,7 @@ namespace RagSystem.Documents.Workers;
 public sealed class IngestionJobRunner(
     RagDbContext db,
     BatchEmbedder embedder,
-    OllamaSettings ollama,
+    EmbeddingModelInfo embeddingModel,
     TimeProvider time,
     ILogger<IngestionJobRunner> logger)
 {
@@ -62,7 +62,7 @@ public sealed class IngestionJobRunner(
             Content = chunk.Text,
             EstTokens = chunk.EstTokens,
             Embedding = new Vector(vectors[index]),
-            EmbeddingModel = ollama.EmbeddingModel,
+            EmbeddingModel = embeddingModel.Name,
             CreatedAt = now,
         }));
 

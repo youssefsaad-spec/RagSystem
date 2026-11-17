@@ -1,15 +1,15 @@
 using System.Net;
 using System.Text.Json;
-using RagSystem.Ollama.Exceptions;
-using RagSystem.Ollama.Services;
-using RagSystem.Ollama.Settings;
+using RagSystem.Embeddings.Exceptions;
+using RagSystem.Embeddings.Services;
+using RagSystem.Tests.Ollama;
 
-namespace RagSystem.Tests.Ollama.Services;
+namespace RagSystem.Tests.Embeddings.Services;
 
 public class QueryEmbedderTests
 {
     private static QueryEmbedder EmbedderFor(StubHandler handler) =>
-        new(new OllamaEmbeddingClient(new HttpClient(handler) { BaseAddress = new Uri("http://ollama.test") }, new OllamaSettings()));
+        new(OllamaTestGenerators.For(handler));
 
     private static StubHandler Embeds(params float[][] vectors) =>
         StubHandler.Json(HttpStatusCode.OK, StubHandler.EmbeddingsJson(vectors));
@@ -42,10 +42,10 @@ public class QueryEmbedderTests
     [Fact]
     public async Task A_vector_of_the_wrong_length_is_a_fatal_error()
     {
-        var error = await Assert.ThrowsAsync<OllamaException>(
+        var error = await Assert.ThrowsAsync<EmbeddingException>(
             () => EmbedderFor(Embeds(StubHandler.Vector(1, length: 768))).EmbedAsync("hello"));
 
-        Assert.Equal(OllamaFailureKind.Fatal, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Fatal, error.Kind);
     }
 
     [Fact]
@@ -53,9 +53,9 @@ public class QueryEmbedderTests
     {
         var handler = StubHandler.Json(HttpStatusCode.ServiceUnavailable, "{\"error\":\"loading\"}");
 
-        var error = await Assert.ThrowsAsync<OllamaException>(() => EmbedderFor(handler).EmbedAsync("hello"));
+        var error = await Assert.ThrowsAsync<EmbeddingException>(() => EmbedderFor(handler).EmbedAsync("hello"));
 
-        Assert.Equal(OllamaFailureKind.Transient, error.Kind);
+        Assert.Equal(EmbeddingFailureKind.Transient, error.Kind);
         Assert.Single(handler.Requests);
     }
 }

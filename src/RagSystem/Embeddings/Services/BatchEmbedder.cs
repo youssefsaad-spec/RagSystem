@@ -1,14 +1,15 @@
-using RagSystem.Ollama.Exceptions;
+using Microsoft.Extensions.AI;
+using RagSystem.Embeddings.Exceptions;
 
-namespace RagSystem.Ollama.Services;
+namespace RagSystem.Embeddings.Services;
 
 /// <summary>
-/// Embeds many texts: splits them into batches (<see cref="EmbeddingBatches"/>), sends each batch to Ollama, retries only
+/// Embeds many texts: splits them into batches (<see cref="EmbeddingBatches"/>), sends each batch to the embedding generator (Gemini or Ollama, through the Microsoft.Extensions.AI interface), retries only
 /// the batch that failed, and returns unit-length vectors. Used by ingestion for the chunk texts, which are embedded as they are.
 /// </summary>
 /// <param name="delay">Waits between attempts. Only tests pass their own, so they do not really wait.</param>
 public sealed class BatchEmbedder(
-    OllamaEmbeddingClient client,
+    IEmbeddingGenerator<string, Embedding<float>> generator,
     ILogger<BatchEmbedder> logger,
     Func<TimeSpan, CancellationToken, Task>? delay = null)
 {
@@ -21,7 +22,7 @@ public sealed class BatchEmbedder(
     private readonly Func<TimeSpan, CancellationToken, Task> _delay = delay ?? ((wait, ct) => Task.Delay(wait, ct));
 
     /// <summary>One vector per text, in the same order, each of length 1.</summary>
-    /// <exception cref="OllamaException">A batch failed for good: a fatal error, or it still failed after <see cref="MaxAttempts"/> tries.</exception>
+    /// <exception cref="EmbeddingException">A batch failed for good: a fatal error, or it still failed after <see cref="MaxAttempts"/> tries.</exception>
     public async Task<IReadOnlyList<float[]>> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct = default)
     {
         var batches = EmbeddingBatches.Plan(texts);
@@ -46,12 +47,13 @@ public sealed class BatchEmbedder(
         {
             try
             {
-                return await client.EmbedAsync(batch, ct);
+                var embeddings = await generator.GenerateAsync(batch, cancellationToken: ct);
+                return [.. embeddings.Select(e => e.Vector.ToArray())];
             }
-            catch (OllamaException error) when (error.Kind != OllamaFailureKind.Fatal)
+            catch (EmbeddingException error) when (error.Kind != EmbeddingFailureKind.Fatal)
             {
                 if (attempt >= MaxAttempts)
-                    throw new OllamaException(error.Kind,
+                    throw new EmbeddingException(error.Kind,
                         $"Gave up on batch {number}/{batches} after {attempt} attempts: {error.Message}", error.RetryAfter, error);
 
                 var wait = error.RetryAfter ?? Backoff(attempt);

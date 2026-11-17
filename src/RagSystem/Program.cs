@@ -7,6 +7,8 @@ using RagSystem.Ingestion.Markdown;
 using RagSystem.Ingestion.OpenApi;
 using RagSystem.Ingestion.Services;
 using RagSystem.Ingestion.Settings;
+using RagSystem.Embeddings;
+using RagSystem.Gemini;
 using RagSystem.Ollama;
 using RagSystem.Retrieval;
 using RagSystem.Validation.Validators;
@@ -35,6 +37,8 @@ builder.Services.AddScoped<IngestionJobRunner>();
 builder.Services.AddHostedService<IngestionWorker>();
 builder.Services.AddDatabase();
 builder.Services.AddOllama(builder.Configuration);
+builder.Services.AddGemini(builder.Configuration);
+builder.Services.AddEmbeddings(builder.Configuration);
 builder.Services.AddRetrieval(builder.Configuration);
 
 var app = builder.Build();

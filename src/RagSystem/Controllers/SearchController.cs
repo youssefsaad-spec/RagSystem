@@ -2,7 +2,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using RagSystem.Documents.Rules;
 using RagSystem.Http;
-using RagSystem.Ollama.Exceptions;
+using RagSystem.Embeddings.Exceptions;
 using RagSystem.Retrieval.Dtos;
 using RagSystem.Retrieval.Services;
 using RagSystem.Validation;
@@ -36,9 +36,9 @@ public sealed class SearchController(Retriever retriever, IValidator<SearchReque
             var result = await retriever.RetrieveAsync(knownVersion, q!, cancellationToken);
             return Ok(SearchResponse.From(knownVersion, q!, result));
         }
-        catch (OllamaException error)
+        catch (EmbeddingException error)
         {
-            return OllamaProblems.For(error, Response);
+            return ModelProblems.For(error, Response);
         }
     }
 }

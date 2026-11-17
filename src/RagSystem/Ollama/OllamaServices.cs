@@ -1,3 +1,4 @@
+using Microsoft.Extensions.AI;
 using RagSystem.Ollama.Services;
 using RagSystem.Ollama.Settings;
 
@@ -7,7 +8,7 @@ public static class OllamaServices
 {
     /// <summary>
     /// Registers the Ollama settings and the embedding client. A wrong value (for example a size other than the
-    /// database column's) stops the app at start.
+    /// database column's) stops the app at start. Whether Ollama is used at all is decided by <c>Embeddings:Provider</c>.
     /// </summary>
     public static IServiceCollection AddOllama(this IServiceCollection services, IConfiguration configuration)
     {
@@ -18,8 +19,10 @@ public static class OllamaServices
             http.BaseAddress = new Uri(settings.BaseUrl);
             http.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
         });
-        services.AddTransient<BatchEmbedder>();
-        services.AddTransient<QueryEmbedder>();
         return services;
     }
+
+    /// <summary>The Ollama embedding generator, behind the Microsoft.Extensions.AI interface.</summary>
+    public static IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator(IServiceProvider provider) =>
+        new OllamaEmbeddingGenerator(provider.GetRequiredService<OllamaEmbeddingClient>(), provider.GetRequiredService<OllamaSettings>());
 }

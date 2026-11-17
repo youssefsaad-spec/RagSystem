@@ -1,5 +1,5 @@
 using RagSystem.Retrieval.Models;
-using RagSystem.Ollama.Services;
+using RagSystem.Embeddings.Services;
 
 namespace RagSystem.Retrieval.Services;
 
@@ -9,7 +9,7 @@ namespace RagSystem.Retrieval.Services;
 /// </summary>
 public sealed class Retriever(QueryEmbedder embedder, ChunkSearcher searcher, ResultPostProcessor postProcessor)
 {
-    /// <exception cref="RagSystem.Ollama.Exceptions.OllamaException">The question could not be embedded.</exception>
+    /// <exception cref="RagSystem.Embeddings.Exceptions.EmbeddingException">The question could not be embedded.</exception>
     public async Task<RetrievalResult> RetrieveAsync(string version, string question, CancellationToken ct)
     {
         var vector = await embedder.EmbedAsync(question, ct);

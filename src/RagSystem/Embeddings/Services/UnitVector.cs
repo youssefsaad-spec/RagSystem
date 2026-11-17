@@ -1,4 +1,4 @@
-namespace RagSystem.Ollama.Services;
+namespace RagSystem.Embeddings.Services;
 
 public static class UnitVector
 {

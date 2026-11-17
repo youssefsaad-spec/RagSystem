@@ -1,4 +1,4 @@
-using RagSystem.Ollama.Exceptions;
+using RagSystem.Embeddings.Exceptions;
 using RagSystem.Ollama.Settings;
 
 namespace RagSystem.Ollama.Services;
@@ -10,7 +10,7 @@ namespace RagSystem.Ollama.Services;
 public sealed class OllamaEmbeddingClient(HttpClient http, OllamaSettings settings)
 {
     /// <summary>One vector per text, in the same order.</summary>
-    /// <exception cref="OllamaException">The call failed (see <see cref="OllamaException.Kind"/>) or the answer is unusable.</exception>
+    /// <exception cref="EmbeddingException">The call failed (see <see cref="EmbeddingException.Kind"/>) or the answer is unusable.</exception>
     public async Task<float[][]> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct = default)
     {
         if (texts.Count == 0)
@@ -25,11 +25,11 @@ public sealed class OllamaEmbeddingClient(HttpClient http, OllamaSettings settin
 
         var vectors = reply.Embeddings ?? [];
         if (vectors.Count != texts.Count)
-            throw new OllamaException(OllamaFailureKind.Fatal, $"Ollama returned {vectors.Count} embeddings for {texts.Count} texts.");
+            throw new EmbeddingException(EmbeddingFailureKind.Fatal, $"Ollama returned {vectors.Count} embeddings for {texts.Count} texts.");
 
         var wrong = vectors.FirstOrDefault(v => v.Length != settings.EmbeddingDimensions);
         if (wrong is not null)
-            throw new OllamaException(OllamaFailureKind.Fatal,
+            throw new EmbeddingException(EmbeddingFailureKind.Fatal,
                 $"Expected {settings.EmbeddingDimensions} dimensions but Ollama returned {wrong.Length}.");
 
         return [.. vectors];
