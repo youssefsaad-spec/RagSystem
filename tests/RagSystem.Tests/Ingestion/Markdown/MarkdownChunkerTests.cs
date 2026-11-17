@@ -180,7 +180,7 @@ public class MarkdownChunkerTests
     {
         var text = TestFiles.ReadAllText(path);
         var settings = new ChunkingSettings();
-        Assert.Equal(50, settings.OverlapTokens);
+        Assert.Equal(100, settings.OverlapTokens);
 
         var result = new MarkdownChunker(settings).Chunk(Path.GetFileName(path), text, version);
 

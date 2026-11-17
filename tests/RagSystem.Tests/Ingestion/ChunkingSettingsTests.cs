@@ -12,7 +12,7 @@ public class ChunkingSettingsTests(WebApplicationFactory<Program> factory) : ICl
     {
         var settings = factory.Services.GetRequiredService<ChunkingSettings>();
 
-        Assert.Equal(new ChunkingSettings { MaxTokensPerChunk = 500, MaxTokensPerLine = 500, OverlapTokens = 50 }, settings);
+        Assert.Equal(new ChunkingSettings { MaxTokensPerChunk = 500, MaxTokensPerLine = 500, OverlapTokens = 100 }, settings);
     }
 
     [Fact]

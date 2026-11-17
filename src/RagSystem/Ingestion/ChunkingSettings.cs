@@ -2,7 +2,7 @@ namespace RagSystem.Ingestion;
 
 /// <summary>
 /// How text is cut into chunks. The values live in the "Chunking" section of appsettings.json; the defaults here
-/// are the same values and are used when a value is missing. They are meant to be tuned later (F46).
+/// are the same values and are used when a value is missing. They are meant to be tuned later (F28).
 /// </summary>
 public sealed record ChunkingSettings
 {
@@ -19,9 +19,9 @@ public sealed record ChunkingSettings
 
     /// <summary>
     /// Tokens repeated at the start of the next chunk, so a sentence cut at a boundary can be found from both sides.
-    /// 50 is 10% of a chunk. 0 = no overlap.
+    /// 100 is 20% of a chunk. 0 = no overlap.
     /// </summary>
-    public int OverlapTokens { get; init; } = 50;
+    public int OverlapTokens { get; init; } = 100;
 
     /// <summary>Returns this object, or throws when a value cannot work.</summary>
     public ChunkingSettings EnsureValid()
