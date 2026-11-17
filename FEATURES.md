@@ -122,4 +122,5 @@ Areas: `Controllers` (the HTTP endpoints), `Documents` (upload, list, delete, ba
 | F40 | Docker | F16, F25 | Dockerfile, full compose (api, postgres, ollama, model pull, dashboard), GPU override, Langfuse compose, ingest script | todo |
 | F41 | Web front end | F36, F29, F16 | Angular app: client chat, admin documents and clients. Large: split into parts when we reach it (see details) | todo |
 | F42 | Own API docs | F16 | `/openapi/v1.json` and Swagger UI, only when enabled by a setting. **Built early** (Swashbuckle 10.3.1); the `X-Api-Key` scheme waits for F29 | in review |
+| F44 | Search endpoint | F17, F18, F19 | Added 2026-11-17 (yours): `GET /api/{version}/search?q=` shows what retrieval finds for a question (kept sources S1.., dropped candidates with reasons and scores) without any chat model. For checking and tuning (F28); F25 reuses its `Retriever` | in review |
 | F43 | Project docs | F16 | README (run, test, ingest) and short upload rules (front matter fields, accepted file types) | in review |

@@ -11,8 +11,7 @@ public class DocumentTablesTests
 {
     private static RagDbContext ContextFor(string connectionString)
     {
-        var options = new DbContextOptionsBuilder<RagDbContext>().UseNpgsql(connectionString, n => n.UseVector()).Options;
-        return new RagDbContext(options);
+        return new RagDbContext(TestContexts.Options(connectionString));
     }
 
     /// <summary>A context that never connects: enough to read the model.</summary>

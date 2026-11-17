@@ -13,6 +13,7 @@ public static class RetrievalServices
         services.AddSingleton<ResultPostProcessor>();
         services.AddScoped<ChunkSearcher>();
         services.AddScoped<ChunkCitations>();
+        services.AddScoped<Retriever>();
         return services;
     }
 }

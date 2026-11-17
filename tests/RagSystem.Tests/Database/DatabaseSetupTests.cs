@@ -83,7 +83,7 @@ public class DatabaseSetupTests(TestApp factory) : IClassFixture<TestApp>
     public async Task Migrating_twice_is_safe_and_leaves_no_pending_migration()
     {
         await using var database = await TestDatabase.CreateAsync();
-        var options = new DbContextOptionsBuilder<RagDbContext>().UseNpgsql(database.ConnectionString, n => n.UseVector()).Options;
+        var options = TestContexts.Options(database.ConnectionString);
 
         await using var context = new RagDbContext(options);
         await context.Database.MigrateAsync();

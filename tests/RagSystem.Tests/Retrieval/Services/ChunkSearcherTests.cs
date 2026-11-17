@@ -15,8 +15,7 @@ public class ChunkSearcherTests
 {
     private static async Task<RagDbContext> OpenAsync(TestDatabase database)
     {
-        var options = new DbContextOptionsBuilder<RagDbContext>().UseNpgsql(database.ConnectionString, n => n.UseVector()).Options;
-        var context = new RagDbContext(options);
+        var context = new RagDbContext(TestContexts.Options(database.ConnectionString));
         await context.Database.MigrateAsync();
         return context;
     }

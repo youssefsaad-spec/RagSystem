@@ -1,6 +1,24 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
+using Pgvector.EntityFrameworkCore;
+using RagSystem.Database;
 
 namespace RagSystem.Tests.Database;
+
+public static class TestContexts
+{
+    /// <summary>
+    /// Options for a context on a test database. Every test has its own database, so every context gets its own internal
+    /// EF service provider, and EF raises an error after 20 of them in one process. That is a fact of the tests (one app
+    /// runs for a whole real process), so the warning is switched off here.
+    /// </summary>
+    public static DbContextOptions<RagDbContext> Options(string connectionString) =>
+        new DbContextOptionsBuilder<RagDbContext>()
+            .UseNpgsql(connectionString, n => n.UseVector())
+            .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
+            .Options;
+}
 
 /// <summary>
 /// A throw-away Postgres database for one test. The tests that use it run only when the environment variable

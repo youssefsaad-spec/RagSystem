@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using RagSystem.Database;
 using RagSystem.Ollama.Services;
@@ -51,13 +52,18 @@ public sealed class ApiHost : IAsyncDisposable
             builder.UseSetting("ConnectionStrings:Db", database.ConnectionString);
             builder.UseSetting("Database:MigrateOnStartup", "true");
             builder.ConfigureTestServices(services =>
-                services.AddHttpClient<OllamaEmbeddingClient>().ConfigurePrimaryHttpMessageHandler(() => stub));
+            {
+                services.AddHttpClient<OllamaEmbeddingClient>().ConfigurePrimaryHttpMessageHandler(() => stub);
+                // One test app per test means many EF service providers in one process (see TestContexts).
+                services.ConfigureDbContext<RagDbContext>(options =>
+                    options.ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning)));
+            });
         });
         return new ApiHost(app, database, app.CreateClient());
     }
 
     public static RagDbContext NewContext(string connectionString) =>
-        new(new DbContextOptionsBuilder<RagDbContext>().UseNpgsql(connectionString, n => n.UseVector()).Options);
+        new(TestContexts.Options(connectionString));
 
     public RagDbContext Context() => NewContext(ConnectionString);
 
