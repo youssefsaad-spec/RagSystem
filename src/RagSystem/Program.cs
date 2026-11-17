@@ -1,5 +1,7 @@
-﻿using RagSystem.Ingestion;
+﻿using RagSystem.Documents;
+using RagSystem.Ingestion;
 using RagSystem.Ingestion.Markdown;
+using RagSystem.Ingestion.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,8 +10,12 @@ var chunking = (builder.Configuration.GetSection(ChunkingSettings.SectionName).G
                 ?? new ChunkingSettings()).EnsureValid();
 builder.Services.AddSingleton(chunking);
 builder.Services.AddSingleton<MarkdownChunker>();
+builder.Services.AddSingleton<OpenApiChunker>();
+builder.Services.AddSingleton<DocumentProcessor>();
 
 var app = builder.Build();
+
+app.MapDocumentEndpoints();
 
 app.Run();
 

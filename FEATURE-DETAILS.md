@@ -89,10 +89,11 @@ Old: `src\RagDocs.Ingestion\OpenApi\OpenApiChunker.cs` (406 lines). The old code
 - **One check:** every key under `paths` starts with `/api/V{n}/`, where n is the upload's version number, else error `version.mismatch` (a V2 file uploaded as v3).
 - Title for citations: `info.title` (for example "OffersV3"), else the file name.
 - **Tests:** the real V2 and V3 files parse without errors, give 16 and 18 operations, every chunk is within the limit, the version check passes for the right version and fails for the other, and a file that is not JSON gives `openapi.unreadable`.
+- **Built (in review):** `Ingestion\OpenApi\OpenApiChunker.cs` and `OpenApiJson.cs`; package `Microsoft.OpenApi` 2.13.1 (latest 2.x; 3.x not tried). Every chunk starts with its header line, also a short one that is not cut (the JSON itself does not contain the route or the schema name). Version check gives **one** `version.mismatch` error (count of wrong paths and the first one), not one per path. Extra code `openapi.empty` when the file has no paths. Real files: V3 = 350 chunks (36 operation pieces, 314 schema pieces), V2 = 301. Note for F42: `Microsoft.AspNetCore.OpenApi` 9.x depends on `Microsoft.OpenApi` 1.x, so choose the packages together.
 - Facts to remember: `GetSearchSet`, `FilterSearchSet` and (V3) `GetAvailableOffers/stream` exist only in Swagger. The V2 Swagger has no `AgencyBalance`. Field names are spelled `journeysAncaillaries` / `segmentsAncaillaries` in the spec.
 
 ### F08 Document processor
-Old: `DocumentProcessor.cs` (33 lines). By extension: `.md` = F06, `.json` = F07, anything else raises "unsupported type" (415). Takes the file name, the bytes and the version, and returns an ingestion result.
+Old: `DocumentProcessor.cs` (33 lines). By extension: `.md` = F06, `.json` = F07, anything else raises "unsupported type" (415). Takes the file name, the bytes and the version, and returns an ingestion result. **Built (in review):** `Ingestion\DocumentProcessor.cs`; an unsupported extension throws `UnsupportedFileTypeException`, which the endpoint turns into 415 (`unsupported_file_type`). Extension match ignores case; a leading byte order mark is removed.
 
 ### F09 Dry-run endpoint
 Old: `Api\Endpoints\DocumentEndpoints.cs`, `scripts\ingest.sh`.
@@ -102,6 +103,7 @@ Old: `Api\Endpoints\DocumentEndpoints.cs`, `scripts\ingest.sh`.
 - **Review checkpoint.** Input files: `content\v2\ndc-portal-apis-v2.md`, `content\v3\ndc-portal-apis-v3.md`, `content\v3\whats-new-v3.md`, `resources\V2\OffersV2.swagger.json`, `resources\v3\OffersV3.swagger.json`. We read the real chunks together before any database work.
 - **Checks in tests:** the three Markdown files give 0 errors; every chunk is within the limit and not empty; the same file twice gives the same chunks; each Swagger file passes the version check for its own version and fails it for the other.
 - To read chunks together: the report returns them, or add a small script that writes them to a text file.
+- **Built (in review):** `Documents\DocumentEndpoints.cs`, `DryRunReport.cs`, `Versions.cs`; `Http\ProblemResults.cs` (the small helper part of F03, so F03 stays `todo` for the exception handler); `scripts\dry-run.ps1` writes the report and chunks of one file to a text file (output folder `dryrun-output\`, git-ignored). 400 reasons: `unknown_version`, `not_multipart`, `no_file`. Without `dryRun=true` the answer is `501 not_implemented` until F14/F16. The passed version is not case sensitive (`V3` is read as `v3`); it is stored and shown in lower case.
 
 ---
 

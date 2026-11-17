@@ -40,9 +40,9 @@ RagSystem, the NDC API docs assistant (a rebuild of the old RagDocs). This file 
 | F04 | Ingestion models | F01 | The shapes passed between steps: issue (severity, code, message, line), chunk (position + text exactly as cut), ingestion result (file name, version, title, issues, chunks) | done |
 | F05 | Front matter reader | F04 | Reads the file header (`version`, `title`, `docType`, `updated`, optional `source`) with our own small parser. Errors: missing/unterminated header, missing field, bad docType, version differs from the upload's version | done |
 | F06 | Markdown chunker | F02, F04, F05 | Reads the header (F05), then cuts the body with Semantic Kernel's `TextChunker` (`SplitMarkDownLines`, then `SplitMarkdownParagraphs`), with F02 as the token counter. Chunk size, line size and overlap come from `appsettings.json` (500, 500, 100); a wrong value stops the app at start. Chunks are kept exactly as cut. Adds package `Microsoft.SemanticKernel.Core` | done |
-| F07 | OpenAPI chunker | F02, F04, F06 | Reads the swagger JSON with `Microsoft.OpenApi`. Each operation and each component schema is written back as its own JSON text with `$ref`s kept, then cut with the same `TextChunker` if over the limit, using the route or the schema name as the chunk header. One check: every path starts with `/api/V{n}/` for the upload's version | todo |
-| F08 | Document processor | F06, F07 | Picks the chunker by extension (`.md`, `.json`), rejects other types (415) | todo |
-| F09 | Dry-run endpoint | F08, F03 | `POST /api/documents?version=v3&dryRun=true` returns the report (errors, warnings) and the chunks, without storing. **Review checkpoint:** we read the real chunks of `content/` together before any database work | todo |
+| F07 | OpenAPI chunker | F02, F04, F06 | Reads the swagger JSON with `Microsoft.OpenApi`. Each operation and each component schema is written back as its own JSON text with `$ref`s kept, then cut with the same `TextChunker` if over the limit, using the route or the schema name as the chunk header. One check: every path starts with `/api/V{n}/` for the upload's version | in review |
+| F08 | Document processor | F06, F07 | Picks the chunker by extension (`.md`, `.json`), rejects other types (415) | in review |
+| F09 | Dry-run endpoint | F08, F03 | `POST /api/documents?version=v3&dryRun=true` returns the report (errors, warnings) and the chunks, without storing. **Review checkpoint:** we read the real chunks of `content/` together before any database work | in review |
 
 ## C. Storing documents
 
