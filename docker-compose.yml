@@ -1,6 +1,7 @@
-# Postgres with the pgvector extension, for local use. More services (Ollama, the app) are added by later features.
+# Postgres with the pgvector extension, and Ollama for embeddings, for local use. The app itself is added by F40.
 #
-#   docker compose up -d postgres
+#   docker compose up -d postgres            (database only)
+#   docker compose up -d                     (database + Ollama; the first start downloads the embedding model)
 #
 # Local use only: the port is bound to 127.0.0.1 and the default password below is the one in appsettings.Development.json.
 # To use another password, set POSTGRES_PASSWORD in the environment (and the connection string of the app to match).
@@ -27,5 +28,36 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # The local model runtime, used for embeddings only (chat uses the Gemini API). CPU is enough for the 0.6B embedding model.
+  # Port bound to 127.0.0.1: Ollama has no authentication. Same pinned image as the old RagDocs.
+  ollama:
+    image: ollama/ollama:0.40.16@sha256:910d0d8107b538fb0894e63163eb195de0cc7aefcbc666dc62d3b18f71124592
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  # One-shot job: downloads the embedding model (about 640 MB) into the ollama volume, then exits.
+  # A model that is already downloaded is not fetched again. The size of its vectors (1,024) must match the database column.
+  ollama-pull:
+    image: ollama/ollama:0.40.16@sha256:910d0d8107b538fb0894e63163eb195de0cc7aefcbc666dc62d3b18f71124592
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+      EMBEDDING_MODEL: "${Ollama__EmbeddingModel:-qwen3-embedding:0.6b}"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['echo "pulling $$EMBEDDING_MODEL"; ollama pull "$$EMBEDDING_MODEL"']
+    restart: "no"
+
 volumes:
   pgdata:
+  ollama:

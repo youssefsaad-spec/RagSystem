@@ -1,3 +1,6 @@
+using RagSystem.Ollama.Services;
+using RagSystem.Ollama.Settings;
+
 namespace RagSystem.Ollama;
 
 public static class OllamaServices
@@ -16,6 +19,7 @@ public static class OllamaServices
             http.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
         });
         services.AddTransient<BatchEmbedder>();
+        services.AddTransient<QueryEmbedder>();
         return services;
     }
 }

@@ -1,9 +1,15 @@
+using FluentValidation;
 using RagSystem.ApiDocs;
 using RagSystem.Database;
-using RagSystem.Ingestion;
+using RagSystem.Documents.Services;
+using RagSystem.Documents.Workers;
 using RagSystem.Ingestion.Markdown;
 using RagSystem.Ingestion.OpenApi;
+using RagSystem.Ingestion.Services;
+using RagSystem.Ingestion.Settings;
 using RagSystem.Ollama;
+using RagSystem.Retrieval;
+using RagSystem.Validation.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,8 +25,17 @@ builder.Services.AddControllers()
     // A request that is not multipart reaches the upload action, which answers 400 not_multipart (not the automatic 415).
     .ConfigureApiBehaviorOptions(options => options.SuppressConsumesConstraintForFormFileParameters = true);
 builder.Services.AddApiDocs();
+builder.Services.AddValidatorsFromAssemblyContaining<VersionRequestValidator>(); // every validator in the Validation folder
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IngestionQueue>();
+builder.Services.AddScoped<DocumentSubmitter>();
+builder.Services.AddScoped<DocumentQueries>();
+builder.Services.AddScoped<DocumentDeleter>();
+builder.Services.AddScoped<IngestionJobRunner>();
+builder.Services.AddHostedService<IngestionWorker>();
 builder.Services.AddDatabase();
 builder.Services.AddOllama(builder.Configuration);
+builder.Services.AddRetrieval(builder.Configuration);
 
 var app = builder.Build();
 

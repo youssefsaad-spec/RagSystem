@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Mvc.Testing;
-
 namespace RagSystem.Tests;
 
 public class ScaffoldTests(TestApp factory) : IClassFixture<TestApp>

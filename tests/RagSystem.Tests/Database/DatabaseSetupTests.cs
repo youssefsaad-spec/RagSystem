@@ -1,7 +1,5 @@
 using System.Net;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using RagSystem.Database;
 
@@ -9,14 +7,13 @@ namespace RagSystem.Tests.Database;
 
 public class DatabaseSetupTests(TestApp factory) : IClassFixture<TestApp>
 {
-    /// <summary>Nothing listens on port 1, so the connection is refused at once.</summary>
-    private const string UnreachableDatabase = "Host=127.0.0.1;Port=1;Database=none;Username=nobody;Password=none;Timeout=2";
+    private const string UnreachableDatabase = TestApp.UnreachableDatabase;
 
     private HttpClient ClientWith(string? connectionString, bool migrateOnStartup = false) =>
         factory.WithWebHostBuilder(builder =>
         {
-            if (connectionString is not null)
-                builder.UseSetting("ConnectionStrings:Db", connectionString);
+            // null means "no connection string at all" (the test app sets an unreachable one by default).
+            builder.UseSetting("ConnectionStrings:Db", connectionString ?? "");
             builder.UseSetting("Database:MigrateOnStartup", migrateOnStartup.ToString());
         }).CreateClient();
 

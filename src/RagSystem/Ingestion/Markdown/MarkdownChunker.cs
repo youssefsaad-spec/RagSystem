@@ -1,4 +1,6 @@
 using Microsoft.SemanticKernel.Text;
+using RagSystem.Ingestion.Models;
+using RagSystem.Ingestion.Settings;
 using RagSystem.Text;
 
 namespace RagSystem.Ingestion.Markdown;

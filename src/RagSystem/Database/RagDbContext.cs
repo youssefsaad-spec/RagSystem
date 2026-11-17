@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using RagSystem.Database.Entities;
 
 namespace RagSystem.Database;
 

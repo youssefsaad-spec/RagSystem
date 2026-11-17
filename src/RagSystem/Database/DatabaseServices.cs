@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using RagSystem.Database.Settings;
 
 namespace RagSystem.Database;
 

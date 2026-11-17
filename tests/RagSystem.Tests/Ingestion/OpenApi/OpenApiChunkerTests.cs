@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
-using RagSystem.Ingestion;
+using RagSystem.Ingestion.Models;
 using RagSystem.Ingestion.OpenApi;
+using RagSystem.Ingestion.Settings;
 
 namespace RagSystem.Tests.Ingestion.OpenApi;
 

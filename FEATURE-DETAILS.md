@@ -34,6 +34,7 @@ F01 and F02 did not change. Removed (not built): old F05, F06, F07, F08, F15, F4
 
 - **Settings:** each feature owns one small settings class bound from its own appsettings section. No regexes in settings (patterns live in code); values that never change are constants. Secrets come from environment variables, never from appsettings.
 - **Version:** `v2` or `v3`, lower case, a hard filter everywhere. Anything else is `400 unknown_version`.
+- **Request validation is FluentValidation** (packages `FluentValidation` and `FluentValidation.DependencyInjectionExtensions` 12.1.1, decided 2026-11-17). A controller builds a small request record, runs its validator and answers the first failure; it holds no checking rules of its own. Validators live in `Validation\` (`VersionRequestValidator`, `UploadDocumentRequestValidator`), the request records in the feature folder (`Documents\Dtos\UploadDocumentRequest.cs`). Each rule says how it is answered with `.WithProblem(status, reason, title, detail)` (reason = error code, status and title in the failure's state), and `ValidationResult.ToProblem()` turns the first failure into the `problem+json` answer. A validator uses `ClassLevelCascadeMode = Stop`, so the order of its rules is the order of the answers. Validators are registered by `AddValidatorsFromAssemblyContaining`. **Not moved:** the start-up checks of settings (`ChunkingSettings.EnsureValid`, `OllamaSettings.EnsureValid`), the document front matter check and the chunk checks (they report issues about file content, not request rules), and the clamping of `skip`/`take`.
 - **Endpoints are regular MVC controllers** (`[ApiController]` classes, all in the top-level `Controllers\` folder, mapped with `MapControllers()`), not minimal APIs. Decided 2026-11-17. `/health` stays the built-in health check.
 - **Errors:** always `application/problem+json` with a `reason` field (F03).
 - **Never log:** raw user text (only the PII-redacted question), API keys or hashes, answer text.
@@ -94,7 +95,7 @@ Old: `src\RagDocs.Ingestion\OpenApi\OpenApiChunker.cs` (406 lines). The old code
 - Facts to remember: `GetSearchSet`, `FilterSearchSet` and (V3) `GetAvailableOffers/stream` exist only in Swagger. The V2 Swagger has no `AgencyBalance`. Field names are spelled `journeysAncaillaries` / `segmentsAncaillaries` in the spec.
 
 ### F08 Document processor
-Old: `DocumentProcessor.cs` (33 lines). By extension: `.md` = F06, `.json` = F07, anything else raises "unsupported type" (415). Takes the file name, the bytes and the version, and returns an ingestion result. **Built (in review):** `Ingestion\DocumentProcessor.cs`; an unsupported extension throws `UnsupportedFileTypeException`, which the endpoint turns into 415 (`unsupported_file_type`). Extension match ignores case; a leading byte order mark is removed.
+Old: `DocumentProcessor.cs` (33 lines). By extension: `.md` = F06, `.json` = F07, anything else raises "unsupported type" (415). Takes the file name, the bytes and the version, and returns an ingestion result. **Built (in review):** `Ingestion\Services\DocumentProcessor.cs`; an unsupported extension throws `UnsupportedFileTypeException`, which the endpoint turns into 415 (`unsupported_file_type`). Extension match ignores case; a leading byte order mark is removed.
 
 ### F09 Dry-run endpoint
 Old: `Api\Endpoints\DocumentEndpoints.cs`, `scripts\ingest.sh`.
@@ -127,7 +128,7 @@ Old: `Persistence\Entities.cs`; PLAN §5. Simplified: no content hash, no sectio
 - `chunks`: id, document_id (cascade), version, ordinal, content (the chunk text as cut), est_tokens, embedding `vector(1024)`, embedding_model, created_at. Index on (version).
 - **No vector index**: a few hundred chunks per version, an exact scan is fast and finds everything.
 - `corpus_state`: version (primary key), revision. Bumped whenever a version's content changes (store or delete); the semantic cache (F35) is keyed on it.
-- **Built (in review):** `Database\Document.cs` (with `DocumentStatus`), `Chunk.cs`, `CorpusState.cs`, configured in `RagDbContext`; migration `DocumentTables`. Columns are snake_case by one rule in the context. `id` is a `uuid` made by the app. `status` is stored as text (`Processing`, `Ready`, `Failed`). `RagDbContext.EmbeddingDimensions` = 1024 is the one constant the Ollama settings are checked against. Indexes: unique `(version, file_name)`, `chunks(version)`, and the one EF adds for the `document_id` foreign key. `chunk_count` is 0 until the document is Ready.
+- **Built (in review):** `Database\Entities\Document.cs` (with `DocumentStatus`), `Chunk.cs`, `CorpusState.cs`, configured in `RagDbContext`; migration `DocumentTables`. Columns are snake_case by one rule in the context. `id` is a `uuid` made by the app. `status` is stored as text (`Processing`, `Ready`, `Failed`). `RagDbContext.EmbeddingDimensions` = 1024 is the one constant the Ollama settings are checked against. Indexes: unique `(version, file_name)`, `chunks(version)`, and the one EF adds for the `document_id` foreign key. `chunk_count` is 0 until the document is Ready.
 
 ### F12 Ollama embedding client
 Old: `Ollama\OllamaEmbeddingGenerator.cs`, `OllamaHttp.cs`, `Embedding\OllamaErrors.cs`; PLAN §15.
@@ -146,7 +147,7 @@ Old: `Embedding\DocumentEmbedder.cs`, `Core\Limits\BatchRetryPolicy.cs`; PLAN §
 - Every returned vector is length-checked and normalised to unit length (skipped when already within 1e-4).
 - Text embedded per chunk: the chunk text as it is (no instruction prefix; queries differ on purpose, F17).
 - Output: one vector per text, in order.
-- **Built (in review):** `Ollama\EmbeddingBatches.cs` (the batch plan), `UnitVector.cs`, `BatchEmbedder.cs`. 7 attempts per batch, waits 2, 4, 8, 16, 32, 60 s (a Retry-After from the server is used instead, not capped). When it gives up the error is an `OllamaException` that says which batch and keeps the cause. The wait is injectable so tests do not really wait. Registered as transient (the typed `HttpClient` is not meant to live forever in a singleton).
+- **Built (in review):** `Ollama\Services\EmbeddingBatches.cs` (the batch plan), `UnitVector.cs`, `BatchEmbedder.cs`. 7 attempts per batch, waits 2, 4, 8, 16, 32, 60 s (a Retry-After from the server is used instead, not capped). When it gives up the error is an `OllamaException` that says which batch and keeps the cause. The wait is injectable so tests do not really wait. Registered as transient (the typed `HttpClient` is not meant to live forever in a singleton).
 
 ### F14 Submit document
 Old: `Ingestion\DocumentIngestionService.SubmitAsync`; PLAN §4.2. **Without** the "unchanged" skip.
@@ -155,6 +156,7 @@ Old: `Ingestion\DocumentIngestionService.SubmitAsync`; PLAN §4.2. **Without** t
   - otherwise create the row (or reuse it) with status `Processing`, clear the error, enqueue the job, return `202 { id, status }`.
 - Same version and file name = **replace**; the old chunks stay in place until the new ones are stored.
 - Several files per version are normal.
+- **Built (in review):** `Documents\Services\DocumentSubmitter.cs` (+ `SubmitOutcome.cs`, `IngestionJob.cs`, `IngestionQueue.cs`). A second upload of a file that is still Processing is `409`, also when two uploads race (the unique index decides). The title is updated at submit; `uploaded_at` is set again. **Added:** a valid file that gives no chunks is refused with error `document.empty` (it would otherwise replace a document's content with nothing); it is checked in `DocumentProcessor`, so a dry run shows it too.
 
 ### F15 Queue and worker
 Old: `Ingestion\IngestionWorker.cs`, `DocumentIngestionService.ProcessAsync/StoreAsync`; PLAN §4.2. **Without** vector reuse.
@@ -163,19 +165,22 @@ Old: `Ingestion\IngestionWorker.cs`, `DocumentIngestionService.ProcessAsync/Stor
 - On error: nothing is stored, status `Failed`, error text kept (at most 2,000 characters). Re-upload starts again from the beginning.
 - The job keeps the upload's correlation id for its logs.
 - At startup: documents still `Processing` are marked `Failed` ("interrupted"). (The old system did not do this; the checklist adds it.)
+- **Built (in review):** `Documents\Workers\IngestionJobRunner.cs` (embed, then one transaction: delete old chunks, insert new, document Ready with `chunk_count` and `ready_at`, bump the revision via `CorpusRevision.BumpAsync`) and `IngestionWorker.cs` (hosted service; marks interrupted documents at start). A failed run changes nothing stored: the document is Failed with the error (cut to 2,000 characters) and its old chunks stay; `chunk_count` keeps the old value. If the document is deleted while it is processed, nothing is stored. A stop during shutdown leaves the document Processing, and the next start marks it Failed. **Not done: the correlation id on the job** (F37 does not exist yet). Needs F37 to add it to `IngestionJob`.
 
 ### F16 Document endpoints
 Old: `DocumentEndpoints.cs`, `DocumentQueries.cs`; PLAN §4.2. Admin key only (F29); `?version=` required on all.
 - `POST /api/documents?version=` upload: `200` dry run, `202 { id, status }`, `409` still processing, `413` over **10 MB**, `415` wrong type, `422` validation report (errors plus warnings), `400` bad version or no file.
 - `GET /api/documents?version=` list; `GET /api/documents/{id}` status and chunk count; `GET /api/documents/{id}/chunks` with `skip` (default 0), `take` (default 100, max 500); `DELETE /api/documents/{id}` removes its chunks and bumps the corpus revision (`204`, or `404`).
 - `scripts\ingest.sh` (F40) uploads the five files and polls until Ready.
+- **Built (in review), admin key not yet** (F29): `Controllers\DocumentsController.cs` with upload, list, get, chunks, delete; `Documents\Services\DocumentQueries.cs`, `DocumentDeleter.cs`, `DocumentViews.cs`. The version check and the upload checks are FluentValidation validators (see the rule above): any case is accepted and the action uses it in lower case. Upload answers: 200 dry run (report + chunks), 202 `{id, status: "Processing"}` with a `Location` header, 400 (`not_multipart`, `no_file` also for an empty file), 409 `document_processing`, 413 `file_too_large` (over 10 MB; Kestrel itself stops bodies over its own 30 MB default first), 415 `unsupported_file_type` (now decided by the validator from the file name), 422 (report with errors and warnings, no chunks). `dryRun=true` is no longer required (the old 501 is gone). Delete is `204`, or `404 document_not_found` (also for another version). List is by file name. Chunk answers leave out the vector.
 
 ---
 
 ## D. Retrieval
 
 ### F17 Query embedder
-Old: `Chat\OllamaQueryEmbedder.cs`. Text sent: `Instruct: Given a question about the NDC Portal APIs, retrieve the documentation passages that answer it\nQuery: {question}`. Documents have no such prefix. Checks the vector length.
+Old: `Chat\OllamaQueryEmbedder.cs`. The old code sent `Instruct: Given a question about the NDC Portal APIs, retrieve the documentation passages that answer it\nQuery: {question}` (the Qwen3-Embedding recommended format). **Decided 2026-11-17 (yours): no instruction; the question is embedded exactly as written**, the same way as the chunks. Checks the vector length. If search quality is poor, trying the instruction again is a F28 experiment.
+- **Built (in review):** `Ollama\Services\QueryEmbedder.cs`. One call through the F12 client (no retry; a failure goes to the caller, F24), vector scaled to length 1. Stays on local Ollama after the Gemini decision.
 
 ### F18 Vector search
 Old: `Chat\PgChunkRetriever.cs`; PLAN §6.2 step 9. Without the entity boost.
@@ -187,6 +192,7 @@ LIMIT 20;
 - Each candidate carries its embedding (F19 needs it for the duplicate check) and a cosine score (1 minus distance).
 - Other lookups the pipeline needs: the corpus revision of a version (0 if none), and the citation (document title and chunk number) by chunk id.
 - Dense search only: no full-text or BM25 hybrid, no entity boost.
+- **Built (in review):** `Retrieval\Services\ChunkSearcher.cs` (EF Core with `CosineDistance`, joined to `documents` for the title; the number of results is `Retrieval:TopK`, default 20, allowed 1 to 200), `ChunkCitations.cs` (title and chunk position by chunk id, for the cache, F35) and `CorpusRevision.CurrentAsync` (0 when none). `Ordinal` is kept as stored (starts at 0); a citation shows it as ordinal + 1 (F23, decided). `ChunkCitations` and `CorpusRevision.CurrentAsync` are kept (you decided) although nothing uses them until F35. Documents of any status are searched: a re-upload keeps its old chunks until the new ones are stored. Tests run on a real Postgres (`RAGSYSTEM_TEST_DB`).
 
 ### F19 Result post-processing
 Old: `Chat\RetrievalPostProcessor.cs`; PLAN §6.2 step 10. Without the workflow cap and the section expansion (they needed chunk types and sections). In this order:
@@ -197,13 +203,15 @@ Old: `Chat\RetrievalPostProcessor.cs`; PLAN §6.2 step 10. Without the workflow 
 - Output items get labels `S1`, `S2`, ... (the model cites these labels, F23): label, document title, chunk number, content, tokens, chunk id, score.
 - Also record why each dropped candidate was dropped (needed for logs in F37).
 - No relevant chunks left = "not covered", no model call (F25).
+- **Built (in review):** `Retrieval\Services\ResultPostProcessor.cs`, pure code with models in `Retrieval\Models\`. Settings section `Retrieval` (`TopK`, `MinScore` 0.60, `DuplicateSimilarity` 0.95, `ContextBudgetTokens` 5,000; a wrong value stops the app at start). The 12-token wrapper is a constant. Rules as the old code: a chunk that does not fit the budget is skipped and a smaller one after it may still fit; the first one is always kept; a weak chunk never makes a later one a "duplicate". Dropped candidates are returned with a reason (`BelowMinScore`, `NearDuplicate`, `OverBudget`) in rank order, for the F37 log table.
+- **Not yet made configurable** (still constants in code; ask if you want them in appsettings): embedding batch size (32) and token limit (6,000), the retry count and waits (F13), the 10 MB upload limit and the 500 chunk page size (F16).
 
 ---
 
 ## E. Chat core
 
-### F20 Ollama chat client
-Old: `Ollama\OllamaChatClient.cs`; PLAN §6.2 step 14, §15.
+### F20 Chat client (Gemini)
+**Decision 2026-11-17 (yours): chat and rewrite use the Gemini API, not the local Qwen model; embeddings stay on local Ollama.** The Ollama-specific details below (`num_ctx`, `keep_alive`, `num_gpu`, the `qwen3` model names, `ollama-pull` in F40) no longer apply and the GPU/`think` work goes away. To settle when we build it: which Gemini model, the request shape (system instruction, `maxOutputTokens`, temperature from settings), the key from an environment variable (never appsettings), how Gemini's errors (429 quota, 5xx, bad key) map to the F12 failure kinds and to F24, and how its token counts feed F31. The old description follows for reference. Old: `Ollama\OllamaChatClient.cs`; PLAN §6.2 step 14, §15.
 - `POST {BaseUrl}/api/chat`: model, messages (system first), `stream` false, `think` false, `options` `num_ctx` 12,288, `num_predict` 3,000, temperature 0.3 (untuned), `keep_alive` "30m". Optional `ChatGpuLayers` (`num_gpu`).
 - Models: chat and rewrite are the same, `qwen3:4b-instruct-2507-q4_K_M`.
 - Reads: answer text, `prompt_eval_count` (input), `eval_count` (output), `done_reason` (`length` = truncated), model name. Thinking tokens are always reported as 0. Remove a `<think>...</think>` block if one appears.
@@ -224,6 +232,7 @@ Old: `Chat\PromptBuilder.cs`; PLAN §6.3. About 600 tokens.
 Old: `PromptBuilder.ParseAnswer`; PLAN §14 #15.
 - Takes the trailing `Sources: S1, S3` line off the reply (tolerates bullets, bold, case, trailing dot). Labels are `S\d+`.
 - `Sources: none` = the model says "not covered": nothing cited, never cached.
+- **Decided 2026-11-17 (yours): a citation is only "title, part N", with N = stored ordinal + 1** (the first chunk is "part 1"); no heading or endpoint name.
 - Citations = document title and chunk number (for example "NDC Portal APIs V3, part 12") of the sources named, without duplicates; the chunk ids behind them are saved as `cited_chunk_ids`.
 - Line missing or no valid labels: cite the first 3 sources, set flag `sources_missing`, **never cache** that answer.
 - Empty answer after removing the line: `502 empty_answer`.

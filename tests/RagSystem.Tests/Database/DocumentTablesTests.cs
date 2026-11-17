@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Pgvector;
 using Pgvector.EntityFrameworkCore;
 using RagSystem.Database;
+using RagSystem.Database.Entities;
 
 namespace RagSystem.Tests.Database;
 

@@ -78,7 +78,7 @@ public class ApiDocsTests(TestApp factory) : IClassFixture<TestApp>
         Assert.Equal(["dryRun", "version"], query);
 
         var answers = upload.GetProperty("responses").EnumerateObject().Select(r => r.Name).Order();
-        Assert.Equal(["200", "400", "415", "501"], answers);
+        Assert.Equal(["200", "202", "400", "409", "413", "415", "422"], answers);
     }
 
     [Fact]

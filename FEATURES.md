@@ -12,7 +12,27 @@ RagSystem, the NDC API docs assistant (a rebuild of the old RagDocs). This file 
 - **OpenAPI files** are read with `Microsoft.OpenApi`. Each operation and each component schema becomes its own text, which is cut by the same chunker.
 - **Not built:** content hashes and "unchanged" checks, our own chunking, entity ranking, chunk types, sections, source and doc types. See `EXCLUDED.md`.
 - **Endpoints are regular MVC controllers** (`[ApiController]`), not minimal APIs. All controllers live in the `Controllers\` folder.
+- **Request validation uses FluentValidation** (validators in `Validation\`); controllers only run them.
+- **Chat model (2026-11-17, yours):** answers and query rewrite use the **Gemini API** (key from an environment variable), not the local Qwen model. **Embeddings stay local** (Ollama, `qwen3-embedding:0.6b`). F20, F21, F24, F27 and F40 change with this; they are reworked when we reach them.
+- **Settings:** every tunable number lives in appsettings (retrieval: `TopK`, `MinScore`, `DuplicateSimilarity`, `ContextBudgetTokens`).
 - **Small choices:** token estimate is `chars / 3.5`; the file header is read by our own small parser (no YAML package); packages are added as a feature needs them, and anything outside the old approved list (PLAN.md section 3) is asked first.
+
+## Project layout (`src\RagSystem`)
+
+Each area folder is split by **what a file is**, with the same folder names everywhere, one type per file, and the namespace equal to the folder path. The tests mirror it under `tests\RagSystem.Tests`.
+
+| Folder | What it holds |
+|---|---|
+| `Dtos` | What goes in and out of the API (requests and responses). Data only. |
+| `Models` | Internal types passed between classes. Data only. |
+| `Entities` | The database tables as classes. |
+| `Rules` | Fixed rules and values (allowed versions, file types, limits). |
+| `Services` | Classes with logic. |
+| `Workers` | The queue, the background service and the job runner. |
+| `Settings` | A section of `appsettings.json` as a class. |
+| `Exceptions` | Our own exception types. |
+
+Areas: `Controllers` (the HTTP endpoints), `Documents` (upload, list, delete, background storing), `Ingestion` (reading and chunking files; `Markdown\` and `OpenApi\` hold the two chunkers), `Database` (context, `Entities`, `Migrations`), `Ollama` (embedding client and batching), `Validation` (FluentValidation: `Validators`), `Http` (shared answer helpers), `Text` (token estimate), `ApiDocs` (Swagger).
 
 ## Working rules
 
@@ -49,27 +69,27 @@ RagSystem, the NDC API docs assistant (a rebuild of the old RagDocs). This file 
 
 | ID | Feature | Needs | What it does / done when | Status |
 |---|---|---|---|---|
-| F10 | Database setup | F01 | Postgres + pgvector in a compose file, EF Core context, migration runs (`MigrateOnStartup`), `/health` checks the database | in review |
-| F11 | Document tables | F10 | Tables `documents` (with title and status), `chunks` (text, position, vector column 1,024), `corpus_state` | in review |
-| F12 | Ollama embedding client | F01 | Calls Ollama `/api/embed` over `HttpClient`, checks the vector size (1,024), classifies failures (fatal / rate-limited / transient) | in review |
-| F13 | Batch embedder | F02, F12 | Splits texts into batches (32 items / 6,000 tokens), retries only the failed batch with back-off, normalises vectors | in review |
-| F14 | Submit document | F08, F11 | Validates, refuses a file still Processing (409), creates the document row as Processing, enqueues. Same version + file name replaces | todo |
-| F15 | Queue and worker | F13, F14 | In-memory queue and background worker. Embeds the chunks as they are, replaces old chunks in one transaction, bumps the corpus revision, marks Failed on error. Interrupted jobs are marked Failed at startup | todo |
-| F16 | Document endpoints | F09, F14, F15 | Upload (200 / 202 / 409 / 413 over 10 MB / 415 / 422), list, get, chunks (paged), delete | todo |
+| F10 | Database setup | F01 | Postgres + pgvector in a compose file, EF Core context, migration runs (`MigrateOnStartup`), `/health` checks the database | done |
+| F11 | Document tables | F10 | Tables `documents` (with title and status), `chunks` (text, position, vector column 1,024), `corpus_state` | done |
+| F12 | Ollama embedding client | F01 | Calls Ollama `/api/embed` over `HttpClient`, checks the vector size (1,024), classifies failures (fatal / rate-limited / transient) | done |
+| F13 | Batch embedder | F02, F12 | Splits texts into batches (32 items / 6,000 tokens), retries only the failed batch with back-off, normalises vectors | done |
+| F14 | Submit document | F08, F11 | Validates, refuses a file still Processing (409), creates the document row as Processing, enqueues. Same version + file name replaces | done |
+| F15 | Queue and worker | F13, F14 | In-memory queue and background worker. Embeds the chunks as they are, replaces old chunks in one transaction, bumps the corpus revision, marks Failed on error. Interrupted jobs are marked Failed at startup | done |
+| F16 | Document endpoints | F09, F14, F15 | Upload (200 / 202 / 409 / 413 over 10 MB / 415 / 422), list, get, chunks (paged), delete | done |
 
 ## D. Retrieval
 
 | ID | Feature | Needs | What it does / done when | Status |
 |---|---|---|---|---|
-| F17 | Query embedder | F12 | Embeds a question with the Qwen3 instruct prefix (documents have none) | todo |
-| F18 | Vector search | F11, F17 | Top 20 chunks of a version by cosine distance | todo |
-| F19 | Result post-processing | F18 | Minimum score, near-duplicate removal, document order, 5,000-token budget, labels S1, S2... | todo |
+| F17 | Query embedder | F12 | Embeds the question exactly as written (no instruction prefix; decided 2026-11-17), same way as the chunks | done |
+| F18 | Vector search | F11, F17 | Top K chunks of a version by cosine distance (K from settings, default 20) | done |
+| F19 | Result post-processing | F18 | Minimum score, near-duplicate removal, document order, token budget, labels S1, S2... (all from settings) | done |
 
 ## E. Chat core (endpoints are open until section F)
 
 | ID | Feature | Needs | What it does / done when | Status |
 |---|---|---|---|---|
-| F20 | Ollama chat client | F12 | Calls Ollama `/api/chat` (`think: false`, `num_ctx`, `num_predict`, temperature, keep_alive), returns text, token counts and whether it was cut off | todo |
+| F20 | Gemini chat client | F12 | **Changed 2026-11-17: the Gemini API replaces the local Qwen chat model** (embeddings stay on local Ollama). Calls Gemini with the key from an environment variable, returns text, token counts and whether it was cut off. Details when we reach it | todo |
 | F21 | Generation gate | F20 | One generation at a time (semaphore) shared by chat and rewrite; waiting counts against the timeout | todo |
 | F22 | Prompt builder | F19 | System rules + documentation context + question; documentation is marked as data; asks the model to end with `Sources: S1, S3` | todo |
 | F23 | Answer parser | F22 | Splits off the `Sources:` line, builds citations from the sources named (document title + part number), handles `none`, missing line (cite first 3, never cache) and empty answer (502) | todo |
@@ -102,4 +122,4 @@ RagSystem, the NDC API docs assistant (a rebuild of the old RagDocs). This file 
 | F40 | Docker | F16, F25 | Dockerfile, full compose (api, postgres, ollama, model pull, dashboard), GPU override, Langfuse compose, ingest script | todo |
 | F41 | Web front end | F36, F29, F16 | Angular app: client chat, admin documents and clients. Large: split into parts when we reach it (see details) | todo |
 | F42 | Own API docs | F16 | `/openapi/v1.json` and Swagger UI, only when enabled by a setting. **Built early** (Swashbuckle 10.3.1); the `X-Api-Key` scheme waits for F29 | in review |
-| F43 | Project docs | F16 | README (run, test, ingest) and short upload rules (front matter fields, accepted file types) | todo |
+| F43 | Project docs | F16 | README (run, test, ingest) and short upload rules (front matter fields, accepted file types) | in review |

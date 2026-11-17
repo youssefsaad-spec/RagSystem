@@ -24,7 +24,7 @@ namespace RagSystem.Database.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("RagSystem.Database.Chunk", b =>
+            modelBuilder.Entity("RagSystem.Database.Entities.Chunk", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -79,7 +79,7 @@ namespace RagSystem.Database.Migrations
                     b.ToTable("chunks", (string)null);
                 });
 
-            modelBuilder.Entity("RagSystem.Database.CorpusState", b =>
+            modelBuilder.Entity("RagSystem.Database.Entities.CorpusState", b =>
                 {
                     b.Property<string>("Version")
                         .HasColumnType("text")
@@ -94,7 +94,7 @@ namespace RagSystem.Database.Migrations
                     b.ToTable("corpus_state", (string)null);
                 });
 
-            modelBuilder.Entity("RagSystem.Database.Document", b =>
+            modelBuilder.Entity("RagSystem.Database.Entities.Document", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -148,9 +148,9 @@ namespace RagSystem.Database.Migrations
                     b.ToTable("documents", (string)null);
                 });
 
-            modelBuilder.Entity("RagSystem.Database.Chunk", b =>
+            modelBuilder.Entity("RagSystem.Database.Entities.Chunk", b =>
                 {
-                    b.HasOne("RagSystem.Database.Document", null)
+                    b.HasOne("RagSystem.Database.Entities.Document", null)
                         .WithMany()
                         .HasForeignKey("DocumentId")
                         .OnDelete(DeleteBehavior.Cascade)

@@ -1,5 +1,5 @@
-using RagSystem.Ingestion;
 using RagSystem.Ingestion.Markdown;
+using RagSystem.Ingestion.Markdown.Models;
 
 namespace RagSystem.Tests.Ingestion.Markdown;
 
