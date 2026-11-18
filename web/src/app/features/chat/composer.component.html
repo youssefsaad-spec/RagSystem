@@ -1,0 +1,65 @@
+<form class="composer" (submit)="$event.preventDefault(); submit()">
+  <label class="sr-only" for="question">Your question about the {{ versionLabel() }} documentation</label>
+  <div class="box" [class.invalid]="over() > 0">
+    <textarea
+      #area
+      id="question"
+      class="textarea"
+      rows="1"
+      autocomplete="off"
+      spellcheck="true"
+      [value]="value()"
+      [attr.aria-invalid]="over() > 0"
+      [attr.aria-describedby]="'composer-help'"
+      [placeholder]="'Ask about the ' + versionLabel() + ' APIs'"
+      (input)="onInput($event)"
+      (keydown)="onKeydown($event)"
+    ></textarea>
+    <div class="bar">
+      <div class="segmented" role="group" aria-label="Documentation version">
+        @for (v of versions; track v) {
+          <button
+            type="button"
+            [attr.aria-pressed]="v === version()"
+            [disabled]="versionLocked() || busy()"
+            [title]="versionLocked() ? 'A conversation stays on the version it started with. Start a new conversation to change it.' : 'Ask about the ' + label(v) + ' documentation'"
+            (click)="versionChange.emit(v)"
+          >{{ label(v) }}</button>
+        }
+      </div>
+
+      <span class="grow"></span>
+
+      @if (busy()) {
+        <button type="button" class="btn" (click)="stop.emit()">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" /></svg>
+          Stop waiting
+        </button>
+      } @else {
+        <button type="submit" class="btn btn-primary" [disabled]="!canSend()">
+          @if (cooldown() > 0) {
+            Wait {{ cooldown() }} s
+          } @else {
+            Send
+          }
+        </button>
+      }
+    </div>
+  </div>
+  <div class="foot" id="composer-help">
+    @if (over() > 0) {
+      <span class="problem" role="alert">
+        {{ format(over()) }} characters over the limit. A question can be about {{ format(max) }} characters at most.
+      </span>
+    } @else if (status()) {
+      <span class="status">{{ status() }}</span>
+    } @else {
+      <span class="muted">
+        Enter sends, Shift+Enter adds a line. Answers come only from the {{ versionLabel() }} documentation. Leave out personal and booking data.
+      </span>
+    }
+    @if (showCounter() && over() <= 0) {
+      <span class="count muted" aria-live="off">{{ format(length()) }} / {{ format(max) }}</span>
+    }
+  </div>
+</form>

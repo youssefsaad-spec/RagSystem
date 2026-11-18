@@ -1,0 +1,110 @@
+<ng-template #inlineTpl let-segments>
+  @for (s of segments; track $index) {
+    @if (s.href) {
+      <a [href]="s.href" target="_blank" rel="noopener noreferrer nofollow">{{ s.text }}</a>
+    } @else if (s.code) {
+      <code>{{ s.text }}</code>
+    } @else if (s.bold && s.italic) {
+      <strong><em>{{ s.text }}</em></strong>
+    } @else if (s.bold) {
+      <strong>{{ s.text }}</strong>
+    } @else if (s.italic) {
+      <em>{{ s.text }}</em>
+    } @else {
+      <span>{{ s.text }}</span>
+    }
+  }
+</ng-template>
+
+<ng-template #blocksTpl let-blocks>
+  @for (b of blocks; track $index) {
+    @switch (b.t) {
+      @case ('p') {
+        <p><ng-container *ngTemplateOutlet="inlineTpl; context: { $implicit: b.inline }" /></p>
+      }
+      @case ('h') {
+        @switch (headingTag(b.level)) {
+          @case ('h3') {
+            <h3><ng-container *ngTemplateOutlet="inlineTpl; context: { $implicit: b.inline }" /></h3>
+          }
+          @case ('h4') {
+            <h4><ng-container *ngTemplateOutlet="inlineTpl; context: { $implicit: b.inline }" /></h4>
+          }
+          @default {
+            <h5><ng-container *ngTemplateOutlet="inlineTpl; context: { $implicit: b.inline }" /></h5>
+          }
+        }
+      }
+      @case ('code') {
+        <div class="code">
+          <div class="code-bar">
+            <span class="lang">{{ b.lang || 'text' }}</span>
+            <button type="button" class="copy" (click)="copyCode(b.text)">
+              {{ copied() === b.text ? 'Copied' : 'Copy code' }}
+            </button>
+          </div>
+          <pre tabindex="0"><code>{{ b.text }}</code></pre>
+        </div>
+      }
+      @case ('list') {
+        @if (b.ordered) {
+          <ol [attr.start]="b.start !== 1 ? b.start : null">
+            @for (item of b.items; track $index) {
+              <li>
+                <ng-container *ngTemplateOutlet="inlineTpl; context: { $implicit: item.inline }" />
+                <ng-container *ngTemplateOutlet="blocksTpl; context: { $implicit: item.blocks }" />
+              </li>
+            }
+          </ol>
+        } @else {
+          <ul>
+            @for (item of b.items; track $index) {
+              <li>
+                <ng-container *ngTemplateOutlet="inlineTpl; context: { $implicit: item.inline }" />
+                <ng-container *ngTemplateOutlet="blocksTpl; context: { $implicit: item.blocks }" />
+              </li>
+            }
+          </ul>
+        }
+      }
+      @case ('quote') {
+        <blockquote>
+          <ng-container *ngTemplateOutlet="blocksTpl; context: { $implicit: b.blocks }" />
+        </blockquote>
+      }
+      @case ('table') {
+        <div class="table-scroll" role="region" aria-label="Table" tabindex="0">
+          <table>
+            <thead>
+              <tr>
+                @for (cell of b.head; track $index) {
+                  <th [style.text-align]="b.align[$index]">
+                    <ng-container *ngTemplateOutlet="inlineTpl; context: { $implicit: cell }" />
+                  </th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of b.rows; track $index) {
+                <tr>
+                  @for (cell of row; track $index) {
+                    <td [style.text-align]="b.align[$index]">
+                      <ng-container *ngTemplateOutlet="inlineTpl; context: { $implicit: cell }" />
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+      @case ('hr') {
+        <hr />
+      }
+    }
+  }
+</ng-template>
+
+<div class="md">
+  <ng-container *ngTemplateOutlet="blocksTpl; context: { $implicit: blocks() }" />
+</div>

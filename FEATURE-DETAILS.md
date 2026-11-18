@@ -216,9 +216,11 @@ Old: `Chat\RetrievalPostProcessor.cs`; PLAN §6.2 step 10. Without the workflow 
 - Models: chat and rewrite are the same, `qwen3:4b-instruct-2507-q4_K_M`.
 - Reads: answer text, `prompt_eval_count` (input), `eval_count` (output), `done_reason` (`length` = truncated), model name. Thinking tokens are always reported as 0. Remove a `<think>...</think>` block if one appears.
 - Uses the failure kinds from F12.
+- **Built (in review):** `Gemini\Services\GeminiChat.cs` (+ `Gemini\Models\ModelRequest`, `ModelReply`). Takes the already registered `IChatClient` (Microsoft.Extensions.AI over `Google.GenAI`), asked for on first use so the app starts without a key (a missing key then gives `502 llm_error`). Per call: model (answer or rewrite model), `MaxOutputTokens`, temperature and thinking budget from `Gemini` settings. **New setting `Gemini:ThinkingBudget` (default 0 = thinking off):** Gemini counts thinking tokens against the output limit, so thinking would cut answers short; -1 lets the model decide, and some models (Pro) cannot turn it off. Verified against a local fake HTTP server (not the real Gemini): the system message goes out as `systemInstruction`, the per-call model is used, `finishReason MAX_TOKENS` gives `Truncated`, `thoughtsTokenCount` gives thinking tokens, and a 429 arrives as `ApiException` with status 429 and is not retried by the SDK. Failures use `GuardedEmbeddingGenerator.Classify` (the F12 kinds). Token counts are kept for F31. **Retry (added after the first real run):** a transient failure (Gemini 503 "high demand", 5xx, connection) is tried again `Gemini:ChatRetries` times (default 2), waiting `RetryDelaySeconds` (2 s, then 4 s), all inside the call's timeout, one warning log line per retry; 429, bad key, missing model and bad request are not retried. **Real run (2026-11-17):** `gemini-2.5-flash` is closed to new users (404). `gemini-3.8-flash` and `gemini-3.7-flash` answered 503 overload and `gemini-3.5-flash` / `gemini-3.6-flash` hung, even for a tiny "Say OK" prompt (so not a prompt-size problem). `gemini-3.1-flash-lite` works and is now the default for chat and rewrite: one real question gave a grounded answer in 6.7 s, 4,229 input tokens (our estimate was about 5,200, so it over-counts), 187 output, sources line read, 4 citations. Model availability changes often: check the model list for your key if a call returns 404 or hangs.
 
 ### F21 Generation gate
 One semaphore shared by chat **and** rewrite (`MaxConcurrentGenerations`, default 1). Waiting for the gate counts against the call's timeout (chat 180 s, rewrite 10 s). Embeddings are not gated. The gate is freed after a failure. A timeout while waiting is "unavailable" (503). This is the real capacity limit: one answer at a time.
+- **Built (in review):** `Gemini\Services\GenerationGate.cs`, settings section `Chat` (`ChatSettings`: `MaxConcurrentGenerations` 1, `ChatTimeoutSeconds`, `RewriteTimeoutSeconds` 10, history and rewrite limits; a wrong value stops the app at start). The timeout covers the wait and the call together; both a busy gate and a slow call are a transient `EmbeddingException` (so 503). The place is given back after a failure; the caller's own cancel stays a cancel. **Changed number: `ChatTimeoutSeconds` is 60, not 180** (180 was for the slow local model; Gemini's own HTTP timeout is 120 s). Ask if you want 180 back.
 
 ### F22 Prompt builder
 Old: `Chat\PromptBuilder.cs`; PLAN §6.3. About 600 tokens.
@@ -227,6 +229,7 @@ Old: `Chat\PromptBuilder.cs`; PLAN §6.3. About 600 tokens.
 - User message: `<documentation version="v3"><source id="S1">...</source>...</documentation>`, a blank line, `Question: ...`. When the rewritten question differs, add `(The same question made standalone from the conversation: ...)`. A source text cannot close the wrapper tags (replace `</source>` and `</documentation>` with look-alikes).
 - History (F26) goes in as alternating user and assistant messages before the last user message.
 - "Not covered" answer text: "I couldn't find this in the V3 NDC Portal documentation, so I can't answer it. Try rephrasing, or ask about a specific endpoint, field, enum or booking flow."
+- **Built (in review):** `Chat\Services\PromptBuilder.cs` and `Chat\Rules\PromptRules.cs` (the rules text, the canary line `[internal-marker: ragsystem-canary-7f3a9c1e]`, the not-covered text with the version in capitals). Returns Microsoft.Extensions.AI messages: system, the history pairs, then one user message. The system rules are new text written from the list above (about 250 tokens); **never tried on the real model**, so wording is untuned (F28). `</source>` and `</documentation>` inside a source become `<\/source>` and `<\/documentation>` (any case).
 
 ### F23 Answer parser
 Old: `PromptBuilder.ParseAnswer`; PLAN §14 #15.
@@ -236,6 +239,7 @@ Old: `PromptBuilder.ParseAnswer`; PLAN §14 #15.
 - Citations = document title and chunk number (for example "NDC Portal APIs V3, part 12") of the sources named, without duplicates; the chunk ids behind them are saved as `cited_chunk_ids`.
 - Line missing or no valid labels: cite the first 3 sources, set flag `sources_missing`, **never cache** that answer.
 - Empty answer after removing the line: `502 empty_answer`.
+- **Built (in review):** `Chat\Services\AnswerParser.cs` (static, returns `ParsedAnswer`: text, cited sources, `NotCovered`, `SourcesMissing`, `IsEmpty`). Only the last non-empty line is looked at, so the word "Sources" in the middle of the text is left alone. A sources line with no valid label counts as missing (the line is still taken off). Citation shape in the answer: `{ title, part, text }` (`part` = stored ordinal + 1; `text` = "title, part N"), not `{ title, path }` as the old API had. Chunk ids go to `messages.cited_chunk_ids`. The empty-answer check is in `ChatPipeline` (`EmptyAnswerException`).
 
 ### F24 Error mapping
 Old: `Embedding\OllamaErrors.cs`, `ChatPipeline.MapLlmFailure`; PLAN §6.1 table.
@@ -243,6 +247,7 @@ Old: `Embedding\OllamaErrors.cs`, `ChatPipeline.MapLlmFailure`; PLAN §6.1 table
 - Model not pulled (404) or another non-retryable error = `502 llm_error`.
 - `llm_quota` exists only when a daily project cap is set (F32).
 - Every mapped failure also gives back reserved tokens (F31).
+- **Built (in review), with Gemini instead of Ollama:** `Http\ModelProblems.cs` (the F44 embedding mapping, now also for chat) maps by failure kind: rate-limited (Gemini 429), transient (5xx, connection, timeout, busy gate) = `503 llm_unavailable` with `Retry-After: 30` (Gemini does not send Retry-After to the SDK); fatal (bad key, missing model, bad request, no key set) = `502 llm_error`. New `ModelProblems.EmptyAnswer()` = `502 empty_answer`. `Http\ConversationProblems.cs` = `404 conversation_not_found`. The Gemini quota (429) is a 503 for now; `llm_quota` waits for F32. Token refund waits for F31.
 
 ### F25 Basic chat endpoint
 Old: `Endpoints\ChatEndpoints.cs`, `Chat\ChatPipeline.cs` (**550 lines: the old design problem; build it as small steps**); PLAN §6.1, §6.2.
@@ -251,6 +256,7 @@ Old: `Endpoints\ChatEndpoints.cs`, `Chat\ChatPipeline.cs` (**550 lines: the old 
 - Flow in this feature: validate, embed the question (F17), search (F18), post-process (F19), nothing left = "not covered" (no model call, 0 tokens), otherwise build the prompt (F22), call the model through the gate (F21), parse sources (F23), return. Guards, history, rewrite, cache, limits are plugged in by their own features (F26 to F35).
 - Step names to keep for logs and spans: validate, guard.input, history.load, query.rewrite, cache.lookup, retrieval.search, retrieval.postprocess, tokens.reserve, llm, tokens.settle, guard.output, db.save_message, cache.write.
 - Open until F29; from F29 on, chat always needs a client key.
+- **Built (in review):** `Controllers\ChatController.cs`, `Chat\Services\ChatPipeline.cs` (small steps: history, rewrite, retrieve, then "not covered" or prompt + model + parse, then save), `Chat\Dtos\` (`ChatRequest`, `ChatResponse` with `ChatCitation` and `ChatUsage`), `Validation\Validators\ChatRequestValidator.cs` (same rules and reasons as search: `unknown_version`, `empty_question`, `question_too_long`). Body `{ conversationId?, message }`; answer `{ conversationId, messageId, answer, citations: [{ title, part, text }], usage: { inputTokens, outputTokens, thinkingTokens, cacheHit } }`. A "not covered" answer (nothing relevant found) is still saved as a turn, with 0 tokens. A truncated answer or a missing sources line is answered normally and noted in `guard_flags` and a warning log (no text logged). `cacheHit` is always false until F35. Not built yet (their own features): step names for logs and spans (F37/F38), guards, cache, token reservation.
 
 ### F26 Conversations and history
 Old: `Chat\EfConversationStore.cs`, `HistoryTrimmer.cs`; PLAN §5, §6.2 step 5, §14 #22.
@@ -260,6 +266,7 @@ Old: `Chat\EfConversationStore.cs`, `HistoryTrimmer.cs`; PLAN §5, §6.2 step 5,
 - History: whole question-and-answer pairs, **newest first**, until 6 turns or 2,000 tokens; stop at the first pair that does not fit (no gaps); returned oldest first. Only questions and answers, never earlier chunks.
 - The user's words are stored (after PII redaction); the retrieval query is stored separately. The assistant message stores the model name Ollama reports (a tag, not a digest).
 - **Also:** `GET /api/{version}/conversations/{id}/messages` returns the client's own history with citations and usage.
+- **Built (in review):** entities `Database\Entities\Conversation.cs` and `Message.cs`, migration `Conversations` (tables `conversations`, `messages`; index `(conversation_id, created_at)`; `guard_flags` is `jsonb`, `cited_chunk_ids` is `uuid[]`), `Chat\Services\ConversationStore.cs` and `HistoryTrimmer.cs`, `Controllers\ConversationsController.cs` (answers 400 `unknown_version`, 404 `conversation_not_found`). `client_id` is a nullable column with **no foreign key** until the `clients` table exists (F29); the store already filters on it, passing null now. A question and its answer are saved together with the same timestamp, so order is by time, then role. `model` is the model asked (from settings) and `model_version` the name Gemini reports. `trace_id` stays null until F38. **The question is stored as written: PII redaction arrives with F33** (until then the stored text is not redacted, against the rule above).
 
 ### F27 Query rewrite
 Old: `Chat\QueryRewriter.cs`; PLAN §6.2 step 6, §14 #24.
@@ -269,6 +276,7 @@ Old: `Chat\QueryRewriter.cs`; PLAN §6.2 step 6, §14 #24.
 - **Fallback** on any failure: previous user question + a space + current question. A fallback query is not standalone, so the cache (F35) skips it. Recorded reasons: `client_budget`, `project_limit`, `project_daily_limit`, `timeout`, `rate_limited`, `error`, `invalid_output`; the reason is saved in the user message's `guard_flags` (`rewrite`).
 - Once F31 exists, the rewrite call also goes through the token reservation (reserve, settle, refund).
 - Test oracle: "and what does its response contain?" after a FareCheck question becomes a FareCheck-response question and retrieves chunks about FareCheck's response.
+- **Built (in review):** `Chat\Services\QueryRewriter.cs`. Uses `Gemini:RewriteModel`, at most `Chat:RewriteMaxOutputTokens` (300), timeout `Chat:RewriteTimeoutSeconds` (10) including the wait for the gate. Fallback reasons recorded now: `timeout` (also a busy gate), `rate_limited` (429), `error`, `invalid_output`; the budget and project reasons come with F31/F32. The reason is saved in the user message's `guard_flags` as `{"rewrite": "<reason>"}`. The retrieval query is saved on the user message (`retrieval_query`). A fallback is not offered to the model as "standalone". The test oracle above needs the real model: **not run** (tests use a fake chat model).
 
 ### F28 Retrieval tuning
 Old: PLAN §13 #14, #15, #17; §15 "Found by the live run".

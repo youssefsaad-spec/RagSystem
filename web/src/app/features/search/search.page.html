@@ -1,0 +1,116 @@
+<main class="page">
+  <div class="head">
+    <div class="titles">
+      <h1>Search check</h1>
+      <p class="muted">
+        See what the assistant finds for a question before any answer is written: the documentation chunks it would read,
+        and the ones it left out, with their scores. Nothing is sent to a chat model.
+      </p>
+    </div>
+    <div class="segmented" role="group" aria-label="API version">
+      @for (v of versions; track v) {
+        <button type="button" [attr.aria-pressed]="v === version()" (click)="setVersion(v)">{{ label(v) }}</button>
+      }
+    </div>
+  </div>
+
+  <form class="panel" (submit)="$event.preventDefault(); submit()">
+    <div class="field">
+      <label for="search-q">Question about the {{ label(version()) }} documentation</label>
+      <textarea
+        id="search-q"
+        class="textarea"
+        rows="2"
+        spellcheck="true"
+        [value]="text()"
+        [attr.aria-invalid]="text().trim().length > max"
+        (input)="text.set($any($event.target).value)"
+        (keydown)="onKeydown($event)"
+      ></textarea>
+      @if (text().trim().length > max) {
+        <span class="field-error" role="alert">{{ format(text().trim().length - max) }} characters over the limit of {{ format(max) }}.</span>
+      } @else {
+        <span class="hint">Enter runs the search, Shift+Enter adds a line.</span>
+      }
+    </div>
+    <div class="row">
+      <button type="submit" class="btn btn-primary" [disabled]="!canRun()">
+        @if (running()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Searching
+        } @else {
+          Search
+        }
+      </button>
+    </div>
+  </form>
+
+  @if (error(); as e) {
+    <app-error-notice [error]="e">
+      @if (e.retryable) {
+        <button type="button" class="btn btn-sm btn-primary" [disabled]="running()" (click)="submit()">Try again</button>
+      }
+    </app-error-notice>
+  }
+
+  @if (result(); as r) {
+    <section aria-labelledby="kept-title" class="results" [class.dim]="running()">
+      <div class="summary">
+        <h2 id="kept-title">Sources the model would read</h2>
+        <span class="muted">
+          {{ format(r.candidates) }} found, {{ format(r.sources.length) }} kept, {{ format(r.dropped.length) }} left out
+        </span>
+      </div>
+
+      @if (r.sources.length === 0) {
+        <p class="empty">
+          Nothing in the {{ label(version()) }} documentation scored high enough. The assistant would answer that it could not find this,
+          without calling the model.
+        </p>
+      } @else {
+        <ol class="sources">
+          @for (s of r.sources; track s.chunkId) {
+            <li>
+              <details>
+                <summary>
+                  <span class="badge badge-signal mono">{{ s.label }}</span>
+                  <span class="cite">{{ s.citation }}</span>
+                  <span class="score" [title]="'Similarity score ' + s.score.toFixed(3)">{{ percent(s.score) }}</span>
+                  <span class="muted">{{ format(s.estTokens) }} tokens</span>
+                </summary>
+                <pre>{{ s.content }}</pre>
+              </details>
+            </li>
+          }
+        </ol>
+      }
+    </section>
+
+    @if (r.dropped.length > 0) {
+      <section aria-labelledby="dropped-title" class="results" [class.dim]="running()">
+        <h2 id="dropped-title">Left out</h2>
+        <div class="table-wrap">
+          <table class="table">
+            <caption class="sr-only">Candidates that were left out</caption>
+            <thead>
+              <tr>
+                <th scope="col">Chunk</th>
+                <th scope="col" class="num">Score</th>
+                <th scope="col">Why</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (d of r.dropped; track d.chunkId) {
+                <tr>
+                  <th scope="row" class="name">{{ d.citation }}</th>
+                  <td class="num" [title]="'Similarity score ' + d.score.toFixed(3)">{{ percent(d.score) }}</td>
+                  <td>{{ reason(d.reason) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  }
+</main>

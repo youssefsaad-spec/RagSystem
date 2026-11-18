@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Pgvector;
 using Pgvector.EntityFrameworkCore;
 using RagSystem.Database;
+using RagSystem.Observability;
 using RagSystem.Retrieval.Models;
 using RagSystem.Retrieval.Settings;
 
@@ -18,7 +19,21 @@ public sealed class ChunkSearcher(RagDbContext db, RetrievalSettings settings)
     /// version is never returned.
     /// </summary>
     /// <param name="question">The embedding of the question (see <c>QueryEmbedder</c>).</param>
-    public async Task<IReadOnlyList<ChunkCandidate>> SearchAsync(string version, float[] question, CancellationToken ct)
+    public Task<IReadOnlyList<ChunkCandidate>> SearchAsync(string version, float[] question, CancellationToken ct) =>
+        Telemetry.TraceAsync("vector_search", Telemetry.Kinds.Retriever, async span =>
+        {
+            span.SetInputJson(new { version, top_k = settings.TopK });
+            var candidates = await SearchCoreAsync(version, question, ct);
+
+            // Every candidate with its score, best first (a short preview of the text: the kept chunks are sent in full by "retrieve").
+            span.SetDocuments(candidates.Select(c => (c.Content, Telemetry.DescribeChunk(c))), previewChars: 300);
+            span.SetMeta("found", candidates.Count);
+            span.SetMeta("best_score", candidates.Count > 0 ? Math.Round(candidates[0].Score, 4) : null);
+            span.SetMeta("lowest_score", candidates.Count > 0 ? Math.Round(candidates[^1].Score, 4) : null);
+            return candidates;
+        });
+
+    private async Task<IReadOnlyList<ChunkCandidate>> SearchCoreAsync(string version, float[] question, CancellationToken ct)
     {
         var vector = new Vector(question);
 

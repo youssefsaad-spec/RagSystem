@@ -1,0 +1,166 @@
+<div class="chat" [class.rail-open]="railOpen()">
+  <aside class="rail" id="conversation-rail" aria-label="Conversations">
+    <div class="rail-head">
+      <button type="button" class="btn btn-primary new" (click)="newConversation()">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+        New conversation
+      </button>
+    </div>
+
+    @if (conversations().length === 0) {
+      <p class="rail-empty muted">
+        Conversations you start appear here. This list is kept in this browser only.
+      </p>
+    } @else {
+      <ul class="convos">
+        @for (c of conversations(); track c.id) {
+          <li [class.active]="c.id === state()?.id()">
+            <a [routerLink]="['/chat', c.version, c.id]" [title]="c.title" [attr.aria-current]="c.id === state()?.id() ? 'page' : null">
+              <span class="c-title">{{ c.title }}</span>
+              <span class="c-meta muted">{{ label(c.version) }}, {{ relative(c.updatedAt) }}</span>
+            </a>
+            <button type="button" class="btn btn-ghost btn-sm forget" [attr.aria-label]="'Remove ' + c.title + ' from this list'" (click)="forget(c)">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </aside>
+
+  @if (railOpen()) {
+    <button type="button" class="scrim" aria-label="Close conversation list" (click)="railOpen.set(false)"></button>
+  }
+
+  <section class="thread" aria-label="Chat">
+    @if (badLink(); as problem) {
+      <div class="scroller">
+        <div class="column">
+          <div class="notice notice-warn" role="alert">
+            <div class="stack">
+              @if (problem === 'version') {
+                <strong>There is no “{{ version() }}” documentation</strong>
+                <p>The assistant answers about the V2 and V3 NDC Portal APIs. Pick one to start.</p>
+                <div class="row">
+                  @for (v of versions; track v) {
+                    <a class="btn btn-primary btn-sm" [routerLink]="['/chat', v]">Ask about {{ label(v) }}</a>
+                  }
+                </div>
+              } @else {
+                <strong>This conversation link is not valid</strong>
+                <p>The conversation id in the address is malformed. Open a conversation from the list, or start a new one.</p>
+                <div class="row">
+                  <a class="btn btn-primary btn-sm" [routerLink]="['/chat', ver()]">Start a new conversation</a>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    } @else if (state(); as s) {
+      <header class="thread-head">
+        <button
+          type="button"
+          class="btn btn-ghost btn-icon rail-toggle"
+          aria-controls="conversation-rail"
+          [attr.aria-expanded]="railOpen()"
+          aria-label="Conversations"
+          (click)="railOpen.set(!railOpen())"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        </button>
+
+        <div class="head-main">
+          @if (s.id()) {
+            <h1 class="head-title">{{ s.title() }}</h1>
+          } @else {
+            <h1 class="head-title">New conversation</h1>
+          }
+        </div>
+
+        @if (s.id()) {
+          <span class="badge badge-signal" title="A conversation stays on the version it started with.">{{ label(s.version) }} documentation</span>
+          <button type="button" class="btn btn-sm" (click)="s.load(true)" [disabled]="s.sending() || s.loadState() === 'loading'" title="Reload the messages from the server">
+            Refresh
+          </button>
+        }
+      </header>
+
+      <div class="scroller" #scroller (scroll)="onScroll()" tabindex="-1">
+        <div class="column" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
+          @switch (s.loadState()) {
+            @case ('loading') {
+              <div class="loading" role="status">
+                <span class="spinner" aria-hidden="true"></span> Loading the conversation
+              </div>
+            }
+            @case ('error') {
+              @if (s.loadError(); as e) {
+                <app-error-notice [error]="e">
+                  @if (e.retryable) {
+                    <button type="button" class="btn btn-sm btn-primary" (click)="s.load(true)">Try again</button>
+                  }
+                  <a class="btn btn-sm" [routerLink]="['/chat', s.version]" (click)="newConversation()">Start a new conversation</a>
+                </app-error-notice>
+              }
+            }
+            @default {
+              @if (s.messages().length === 0) {
+                <div class="empty">
+                  <h2>Ask about the {{ label(s.version) }} NDC Portal APIs</h2>
+                  <p class="muted">
+                    Answers come only from the official {{ label(s.version) }} documentation and list the sections they used. If the documentation does not cover a question, the assistant says so.
+                  </p>
+                  <ul class="starters" aria-label="Example questions">
+                    @for (q of starters(); track q) {
+                      <li><button type="button" class="starter" (click)="useStarter(q)">{{ q }}</button></li>
+                    }
+                  </ul>
+                </div>
+              } @else {
+                @for (m of s.messages(); track m.localId; let i = $index) {
+                  <app-message
+                    [message]="m"
+                    [version]="s.version"
+                    [question]="previousQuestion(s.messages(), i)"
+                    [waitingSec]="s.waitingSec()"
+                    [cooldownLeft]="s.cooldownLeft()"
+                    [busy]="s.sending()"
+                    (retry)="s.retry(m.localId)"
+                    (edit)="s.edit(m.localId); composer()?.focus()"
+                    (discard)="s.discard(m.localId)"
+                    (askInNewConversation)="askInNewConversation(m.localId)"
+                    (stop)="s.cancel()"
+                  />
+                }
+              }
+            }
+          }
+        </div>
+      </div>
+
+      @if (!atBottom() && s.messages().length > 0) {
+        <button type="button" class="btn btn-sm jump" (click)="goLatest()">Jump to latest</button>
+      }
+
+      <div class="dock">
+        <div class="column">
+          <app-composer
+            [value]="s.draft()"
+            [busy]="s.sending()"
+            [cooldown]="s.cooldownLeft()"
+            [offline]="!online.online()"
+            [blockedReason]="blockedReason()"
+            [versionLabel]="label(s.version)"
+            [version]="s.version"
+            [versionLocked]="!!s.id()"
+            (versionChange)="switchVersion($event)"
+            (valueChange)="s.setDraft($event)"
+            (submitted)="send($event)"
+            (stop)="s.cancel()"
+          />
+        </div>
+      </div>
+    }
+  </section>
+</div>

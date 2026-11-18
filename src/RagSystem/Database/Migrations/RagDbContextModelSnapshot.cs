@@ -79,6 +79,39 @@ namespace RagSystem.Database.Migrations
                     b.ToTable("chunks", (string)null);
                 });
 
+            modelBuilder.Entity("RagSystem.Database.Entities.Conversation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset>("LastMessageAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_message_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("conversations", (string)null);
+                });
+
             modelBuilder.Entity("RagSystem.Database.Entities.CorpusState", b =>
                 {
                     b.Property<string>("Version")
@@ -148,11 +181,100 @@ namespace RagSystem.Database.Migrations
                     b.ToTable("documents", (string)null);
                 });
 
+            modelBuilder.Entity("RagSystem.Database.Entities.Message", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("CacheHit")
+                        .HasColumnType("boolean")
+                        .HasColumnName("cache_hit");
+
+                    b.PrimitiveCollection<Guid[]>("CitedChunkIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("cited_chunk_ids");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("EstTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("est_tokens");
+
+                    b.Property<string>("GuardFlags")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("guard_flags");
+
+                    b.Property<int>("InputTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("input_tokens");
+
+                    b.Property<string>("Model")
+                        .HasColumnType("text")
+                        .HasColumnName("model");
+
+                    b.Property<string>("ModelVersion")
+                        .HasColumnType("text")
+                        .HasColumnName("model_version");
+
+                    b.Property<int>("OutputTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("output_tokens");
+
+                    b.Property<string>("RetrievalQuery")
+                        .HasColumnType("text")
+                        .HasColumnName("retrieval_query");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("role");
+
+                    b.Property<int>("ThinkingTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("thinking_tokens");
+
+                    b.Property<string>("TraceId")
+                        .HasColumnType("text")
+                        .HasColumnName("trace_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId", "CreatedAt")
+                        .HasDatabaseName("ix_messages_conversation_id_created_at");
+
+                    b.ToTable("messages", (string)null);
+                });
+
             modelBuilder.Entity("RagSystem.Database.Entities.Chunk", b =>
                 {
                     b.HasOne("RagSystem.Database.Entities.Document", null)
                         .WithMany()
                         .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RagSystem.Database.Entities.Message", b =>
+                {
+                    b.HasOne("RagSystem.Database.Entities.Conversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

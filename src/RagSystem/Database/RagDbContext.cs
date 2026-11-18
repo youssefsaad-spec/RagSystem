@@ -19,6 +19,10 @@ public sealed class RagDbContext(DbContextOptions<RagDbContext> options) : DbCon
 
     public DbSet<CorpusState> CorpusStates => Set<CorpusState>();
 
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+
+    public DbSet<Message> Messages => Set<Message>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // pgvector: the "vector" column type used for embeddings.
@@ -47,6 +51,23 @@ public sealed class RagDbContext(DbContextOptions<RagDbContext> options) : DbCon
         {
             state.ToTable("corpus_state");
             state.HasKey(s => s.Version);
+        });
+
+        modelBuilder.Entity<Conversation>(conversation =>
+        {
+            conversation.ToTable("conversations");
+            conversation.Property(c => c.CreatedAt).HasDefaultValueSql("now()");
+            conversation.Property(c => c.LastMessageAt).HasDefaultValueSql("now()");
+            // client_id has no foreign key yet: the clients table arrives with F29.
+        });
+
+        modelBuilder.Entity<Message>(message =>
+        {
+            message.ToTable("messages");
+            message.Property(m => m.GuardFlags).HasColumnType("jsonb");
+            message.Property(m => m.CreatedAt).HasDefaultValueSql("now()");
+            message.HasOne<Conversation>().WithMany().HasForeignKey(m => m.ConversationId).OnDelete(DeleteBehavior.Cascade);
+            message.HasIndex(m => new { m.ConversationId, m.CreatedAt }).HasDatabaseName("ix_messages_conversation_id_created_at");
         });
 
         // Column names are snake_case: UploadedAt becomes uploaded_at.

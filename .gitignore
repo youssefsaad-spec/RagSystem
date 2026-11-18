@@ -5,3 +5,6 @@ obj/
 TestResults/
 dryrun-output/
 .env
+
+# Local secrets (the Gemini key): read in Development only, never committed
+appsettings.Local.json

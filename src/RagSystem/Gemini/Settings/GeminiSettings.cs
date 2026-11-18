@@ -17,10 +17,10 @@ public sealed record GeminiSettings
     public string ApiKey { get; init; } = "";
 
     /// <summary>The model that writes the answers.</summary>
-    public string ChatModel { get; init; } = "gemini-2.5-flash";
+    public string ChatModel { get; init; } = "gemini-3.1-flash-lite";
 
     /// <summary>The model that rewrites a follow-up question into a standalone one.</summary>
-    public string RewriteModel { get; init; } = "gemini-2.5-flash";
+    public string RewriteModel { get; init; } = "gemini-3.1-flash-lite";
 
     /// <summary>The model that makes the embeddings. It can shorten its vectors to <see cref="EmbeddingDimensions"/>.</summary>
     public string EmbeddingModel { get; init; } = "gemini-embedding-001";
@@ -31,6 +31,19 @@ public sealed record GeminiSettings
     public double Temperature { get; init; } = 0.3;
 
     public int MaxOutputTokens { get; init; } = 3000;
+
+    /// <summary>
+    /// How many tokens the model may spend thinking before it answers. 0 turns thinking off (the default: thinking counts against
+    /// <see cref="MaxOutputTokens"/> and answers from documentation do not need it); -1 lets the model decide. Some models
+    /// (for example the Pro ones) cannot turn thinking off.
+    /// </summary>
+    public int ThinkingBudget { get; init; } = 0;
+
+    /// <summary>How many times a chat call is tried again after a passing failure (Gemini overloaded, 5xx, connection). 0 = never retry.</summary>
+    public int ChatRetries { get; init; } = 2;
+
+    /// <summary>The first wait before a retry; each next wait doubles (2 s, then 4 s).</summary>
+    public int RetryDelaySeconds { get; init; } = 2;
 
     /// <summary>How long one call may take before it counts as a transient failure.</summary>
     public int TimeoutSeconds { get; init; } = 120;
@@ -57,6 +70,12 @@ public sealed record GeminiSettings
             throw new InvalidOperationException($"{SectionName}:Temperature must be between 0 and 2, but it is {Temperature}.");
         if (MaxOutputTokens <= 0)
             throw new InvalidOperationException($"{SectionName}:MaxOutputTokens must be above 0, but it is {MaxOutputTokens}.");
+        if (ThinkingBudget < -1)
+            throw new InvalidOperationException($"{SectionName}:ThinkingBudget must be -1, 0 or more, but it is {ThinkingBudget}.");
+        if (ChatRetries < 0)
+            throw new InvalidOperationException($"{SectionName}:ChatRetries must be 0 or more, but it is {ChatRetries}.");
+        if (RetryDelaySeconds < 0)
+            throw new InvalidOperationException($"{SectionName}:RetryDelaySeconds must be 0 or more, but it is {RetryDelaySeconds}.");
         if (TimeoutSeconds <= 0)
             throw new InvalidOperationException($"{SectionName}:TimeoutSeconds must be above 0, but it is {TimeoutSeconds}.");
         return this;

@@ -1,3 +1,4 @@
+using RagSystem.Observability;
 using RagSystem.Retrieval.Models;
 using RagSystem.Retrieval.Settings;
 using System;
@@ -15,7 +16,42 @@ public sealed class ResultPostProcessor(RetrievalSettings settings)
     public const int WrapperTokens = 12;
 
     /// <param name="candidates">As the search returned them: best match first.</param>
-    public RetrievalResult Process(IReadOnlyList<ChunkCandidate> candidates)
+    public RetrievalResult Process(IReadOnlyList<ChunkCandidate> candidates) =>
+        Telemetry.Trace("post_process", Telemetry.Kinds.Chain, span =>
+        {
+            span.SetInputJson(new
+            {
+                candidates = candidates.Count,
+                min_score = settings.MinScore,
+                duplicate_similarity = settings.DuplicateSimilarity,
+                context_budget_tokens = settings.ContextBudgetTokens,
+            });
+
+            var result = ProcessCore(candidates, out var tokensUsed);
+
+            // What each step did: how many chunks it removed and which ones (ids, scores and reasons; no text).
+            span.SetOutputJson(new
+            {
+                kept = result.Sources.Select(s => new { label = s.Label, chunk_id = s.ChunkId, document = s.DocumentTitle, ordinal = s.Ordinal, score = Math.Round(s.Score, 4) }),
+                dropped = result.Dropped.Select(d => new
+                {
+                    reason = d.Reason.ToString(),
+                    chunk_id = d.Candidate.ChunkId,
+                    document = d.Candidate.DocumentTitle,
+                    ordinal = d.Candidate.Ordinal,
+                    score = Math.Round(d.Candidate.Score, 4),
+                }),
+            });
+            span.SetMeta("kept", result.Sources.Count);
+            span.SetMeta("dropped_below_min_score", result.Dropped.Count(d => d.Reason == DropReason.BelowMinScore));
+            span.SetMeta("dropped_near_duplicate", result.Dropped.Count(d => d.Reason == DropReason.NearDuplicate));
+            span.SetMeta("dropped_over_budget", result.Dropped.Count(d => d.Reason == DropReason.OverBudget));
+            span.SetMeta("tokens_used", tokensUsed);
+            span.SetMeta("not_covered", result.IsEmpty); // nothing left: the model will not be called
+            return result;
+        });
+
+    private RetrievalResult ProcessCore(IReadOnlyList<ChunkCandidate> candidates, out int tokensUsed)
     {
         var dropped = new List<DroppedCandidate>();
 
@@ -78,6 +114,7 @@ public sealed class ResultPostProcessor(RetrievalSettings settings)
             .ToList();
 
         // The dropped list is in rank order, not in the order of the steps.
+        tokensUsed = used;
         var rankOf = candidates.Select((c, i) => (c.ChunkId, i)).ToDictionary(x => x.ChunkId, x => x.i);
         return new RetrievalResult(sources, dropped.OrderBy(d => rankOf[d.Candidate.ChunkId]).ToList());
     }

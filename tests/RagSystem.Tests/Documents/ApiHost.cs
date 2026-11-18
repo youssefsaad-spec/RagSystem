@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using RagSystem.Database;
 using RagSystem.Ollama.Services;
 using RagSystem.Tests.Database;
@@ -34,9 +36,11 @@ public sealed class ApiHost : IAsyncDisposable
 
     /// <param name="ollama">The fake Ollama. By default it answers every text with a valid vector.</param>
     /// <param name="prepare">Runs on the migrated database before the app starts (to put rows in it).</param>
+    /// <param name="chat">A fake chat model. By default the app keeps its real Gemini client (which no test calls).</param>
     public static async Task<ApiHost> StartAsync(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? ollama = null,
-        Func<RagDbContext, Task>? prepare = null)
+        Func<RagDbContext, Task>? prepare = null,
+        IChatClient? chat = null)
     {
         var database = await TestDatabase.CreateAsync();
         if (prepare is not null)
@@ -52,9 +56,15 @@ public sealed class ApiHost : IAsyncDisposable
             builder.UseSetting("ConnectionStrings:Db", database.ConnectionString);
             builder.UseSetting("Database:MigrateOnStartup", "true");
             builder.UseSetting("Embeddings:Provider", "Ollama"); // the fake Ollama below stands in for the embedding service
+            builder.UseSetting("Gemini:ChatRetries", "0"); // a failing fake chat model must fail at once, not after real waits
             builder.ConfigureTestServices(services =>
             {
                 services.AddHttpClient<OllamaEmbeddingClient>().ConfigurePrimaryHttpMessageHandler(() => stub);
+                if (chat is not null)
+                {
+                    services.RemoveAll<IChatClient>();
+                    services.AddSingleton(chat);
+                }
                 // One test app per test means many EF service providers in one process (see TestContexts).
                 services.ConfigureDbContext<RagDbContext>(options =>
                     options.ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning)));

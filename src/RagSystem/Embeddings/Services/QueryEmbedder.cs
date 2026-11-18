@@ -1,5 +1,6 @@
 using Microsoft.Extensions.AI;
 using RagSystem.Embeddings.Exceptions;
+using RagSystem.Observability;
 
 namespace RagSystem.Embeddings.Services;
 
@@ -12,9 +13,13 @@ public sealed class QueryEmbedder(IEmbeddingGenerator<string, Embedding<float>> 
 {
     /// <summary>The vector of the question, length 1, with the length checked.</summary>
     /// <exception cref="EmbeddingException">The call failed (see <see cref="EmbeddingException.Kind"/>) or the answer is unusable.</exception>
-    public async Task<float[]> EmbedAsync(string question, CancellationToken ct = default)
-    {
-        var embeddings = await generator.GenerateAsync([question], cancellationToken: ct);
-        return UnitVector.Of(embeddings[0].Vector.ToArray());
-    }
+    public Task<float[]> EmbedAsync(string question, CancellationToken ct = default) =>
+        Telemetry.TraceAsync("embed_query", Telemetry.Kinds.Embedding, async span =>
+        {
+            span.SetInput(question);
+            var embeddings = await generator.GenerateAsync([question], cancellationToken: ct);
+            var vector = UnitVector.Of(embeddings[0].Vector.ToArray());
+            span.SetMeta("dimensions", vector.Length); // the vector itself is not sent
+            return vector;
+        });
 }

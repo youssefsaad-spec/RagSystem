@@ -1,0 +1,178 @@
+<main class="page">
+  <div class="head">
+    <div class="titles">
+      <h1>Documents</h1>
+      <p class="muted">
+        The documentation the assistant answers from. Upload Markdown guides and OpenAPI files for each API version.
+      </p>
+    </div>
+    <div class="segmented" role="group" aria-label="API version">
+      @for (v of versions; track v) {
+        <button type="button" [attr.aria-pressed]="v === version()" (click)="setVersion(v)">{{ label(v) }}</button>
+      }
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <section class="panel" aria-labelledby="upload-title">
+    <h2 id="upload-title">Upload to {{ label(version()) }}</h2>
+
+    <div
+      class="drop"
+      [class.dragging]="dragging()"
+      (dragenter)="dragging.set(true)"
+      (dragover)="$event.preventDefault(); dragging.set(true)"
+      (dragleave)="dragging.set(false)"
+      (drop)="onDrop($event)"
+    >
+      <p>Drop <span class="mono">.md</span> or <span class="mono">.json</span> files here, or</p>
+      <button type="button" class="btn btn-primary" (click)="pick()">Choose files</button>
+      <input #fileInput type="file" class="sr-only" multiple [accept]="accept" tabindex="-1" aria-label="Choose documents to upload" (change)="onPicked($event)" />
+      <p class="hint">Up to {{ maxMb }} MB each. Uploading a file with the same name replaces it.</p>
+    </div>
+
+    <label class="check">
+      <input type="checkbox" [checked]="dryRun()" (change)="dryRun.set($any($event.target).checked)" />
+      <span>
+        Check only
+        <span class="hint block">Validates the file and shows the chunks it would produce, without storing anything.</span>
+      </span>
+    </label>
+
+    @if (queue().length > 0) {
+      <div class="queue-head">
+        <h3>This session’s uploads</h3>
+        @if (finished()) {
+          <button type="button" class="btn btn-ghost btn-sm" (click)="clearFinished()">Clear finished</button>
+        }
+      </div>
+      <ul class="queue">
+        @for (item of queue(); track item.id) {
+          <li class="item" [class]="'item tone-' + statusTone(item)">
+            <div class="item-main">
+              <div class="item-top">
+                <span class="file">{{ item.file.name }}</span>
+                <span class="muted">{{ bytes(item.file.size) }}, {{ label(item.version) }}</span>
+                @if (item.dryRun) {
+                  <span class="badge badge-info">Check only</span>
+                }
+              </div>
+              <p class="state" [attr.role]="item.status === 'failed' || item.status === 'rejected' ? 'alert' : 'status'">
+                @if (item.status === 'uploading') {
+                  <span class="spinner" aria-hidden="true"></span>
+                }
+                {{ statusText(item) }}
+              </p>
+              @if (item.status === 'uploading' && item.percent !== null && item.percent < 100) {
+                <progress max="100" [value]="item.percent" [attr.aria-label]="'Upload progress of ' + item.file.name"></progress>
+              }
+              @if (item.error && item.status === 'failed') {
+                <p class="detail">{{ item.error.message }}</p>
+              }
+            </div>
+            <div class="item-actions">
+              @if (canRetry(item)) {
+                <button type="button" class="btn btn-sm" (click)="retryItem(item)">Try again</button>
+              }
+              <button type="button" class="btn btn-sm btn-ghost" (click)="removeItem(item.id)">
+                {{ item.status === 'uploading' ? 'Cancel' : 'Remove' }}
+              </button>
+            </div>
+            @if (item.report) {
+              <div class="item-report">
+                <app-report-view [report]="item.report" />
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <!-- List -->
+  <section aria-labelledby="doc-list" class="list">
+    <div class="list-head">
+      <h2 id="doc-list">{{ label(version()) }} documents</h2>
+      @if (!loading() && !loadError()) {
+        <span class="muted">
+          {{ docs().length }} stored
+          @if (processing() > 0) {
+            , {{ processing() }} processing
+          }
+        </span>
+      }
+      <span class="spacer"></span>
+      <button type="button" class="btn btn-sm" [disabled]="loading()" (click)="reload()">Refresh</button>
+    </div>
+
+    @if (loading() && docs().length === 0) {
+      <div class="state-box" role="status"><span class="spinner" aria-hidden="true"></span> Loading documents</div>
+    } @else if (loadError(); as e) {
+      <app-error-notice [error]="e">
+        <button type="button" class="btn btn-sm btn-primary" (click)="reload()">Try again</button>
+      </app-error-notice>
+    } @else if (docs().length === 0) {
+      <div class="state-box">
+        No {{ label(version()) }} documents yet. Upload the guide and the OpenAPI file above, and the assistant can start answering.
+      </div>
+    } @else {
+      <div class="table-wrap">
+        <table class="table">
+          <caption class="sr-only">{{ label(version()) }} documents</caption>
+          <thead>
+            <tr>
+              <th scope="col">File</th>
+              <th scope="col">Title</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="num">Chunks</th>
+              <th scope="col">Uploaded</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (d of docs(); track d.id) {
+              <tr>
+                <th scope="row" class="name">
+                  <button type="button" class="link" (click)="selected.set(d)">{{ d.fileName }}</button>
+                  @if (d.error) {
+                    <span class="row-error">{{ d.error }}</span>
+                  }
+                </th>
+                <td>{{ d.title }}</td>
+                <td>
+                  @switch (d.status) {
+                    @case ('Ready') {
+                      <span class="badge badge-ok">Ready</span>
+                    }
+                    @case ('Processing') {
+                      <span class="badge badge-warn"><span class="spinner" aria-hidden="true"></span> Processing</span>
+                    }
+                    @case ('Failed') {
+                      <span class="badge badge-danger">Failed</span>
+                    }
+                    @default {
+                      <span class="badge">{{ d.status }}</span>
+                    }
+                  }
+                </td>
+                <td class="num">{{ format(d.chunkCount) }}</td>
+                <td [title]="absolute(d.uploadedAt)">{{ relative(d.uploadedAt) || 'n/a' }}</td>
+                <td class="actions">
+                  <button type="button" class="btn btn-sm" (click)="selected.set(d)">Details</button>
+                  <button type="button" class="btn btn-sm btn-ghost" [disabled]="busyIds().has(d.id)" (click)="remove(d)">
+                    @if (busyIds().has(d.id)) {
+                      <span class="spinner" aria-hidden="true"></span>
+                    }
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</main>
+
+<app-document-detail [document]="selected()" [version]="version()" (closed)="selected.set(null)" />

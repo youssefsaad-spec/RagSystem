@@ -1,0 +1,208 @@
+<main class="page">
+  <div class="head">
+    <div class="titles">
+      <h1>Retrieval tuning</h1>
+      <p class="muted">
+        Run a set of real questions through the search and look at the scores. Use it to choose the minimum score, to see
+        which question finds nothing, and to check that each question finds the source it was written for. No chat model is
+        called, but every question is embedded, so keep the set short.
+      </p>
+    </div>
+    <div class="segmented" role="group" aria-label="API version">
+      @for (v of versions; track v) {
+        <button type="button" [attr.aria-pressed]="v === version()" (click)="setVersion(v)">{{ label(v) }}</button>
+      }
+    </div>
+  </div>
+
+  <section class="panel" aria-labelledby="set-title">
+    <h2 id="set-title">Question set for {{ label(version()) }}</h2>
+    <div class="field">
+      <label for="tuning-set" class="sr-only">Questions, one per line</label>
+      <textarea
+        id="tuning-set"
+        class="textarea mono-area"
+        rows="8"
+        spellcheck="false"
+        [value]="text()"
+        [disabled]="running()"
+        (input)="setText($any($event.target).value)"
+      ></textarea>
+      <span class="hint">
+        One question per line, at most {{ maxQuestions }}. Write <span class="mono">question =&gt; text</span> to say which source it
+        should find: the text must appear in the source name, for example <span class="mono">What's New</span> or
+        <span class="mono">part 4</span>. Write <span class="mono">=&gt; none</span> for a question the documentation does not cover.
+        Lines starting with <span class="mono">#</span> are notes.
+      </span>
+    </div>
+
+    <div class="controls">
+      @if (running()) {
+        <button type="button" class="btn" (click)="stop()">Stop</button>
+      } @else {
+        <button type="button" class="btn btn-primary" [disabled]="!canRun()" (click)="run()">
+          Run {{ questions().length }} {{ questions().length === 1 ? 'question' : 'questions' }}
+        </button>
+      }
+      <button type="button" class="btn" [disabled]="running()" (click)="loadExamples()">Load examples</button>
+
+      <div class="field threshold">
+        <label for="tuning-threshold">Minimum score to try</label>
+        <input
+          id="tuning-threshold"
+          class="input"
+          type="number"
+          min="0.05"
+          max="1"
+          step="0.01"
+          [value]="threshold()"
+          (change)="setThreshold($any($event.target).value)"
+        />
+      </div>
+    </div>
+    <p class="hint">
+      The server's own minimum is <span class="mono">Retrieval:MinScore</span> in appsettings.json (0.60 unless changed). The "At or above"
+      column counts what a different minimum would keep; duplicates and the token budget are not simulated.
+    </p>
+  </section>
+
+  @if (rows().length > 0) {
+    <section class="tiles" aria-label="Summary">
+      <div class="tile">
+        <span class="tile-n">{{ summary().done }} / {{ summary().total }}</span>
+        <span class="tile-l">questions searched</span>
+      </div>
+      <div class="tile">
+        <span class="tile-n">{{ summary().answered }}</span>
+        <span class="tile-l">would be answered by the model</span>
+      </div>
+      <div class="tile">
+        <span class="tile-n">{{ summary().answeredAtThreshold }}</span>
+        <span class="tile-l">would be answered at {{ percent(threshold()) }}</span>
+      </div>
+      <div class="tile">
+        <span class="tile-n">{{ percent(summary().medianBest) }}</span>
+        <span class="tile-l">median best score</span>
+      </div>
+      @if (summary().expectedTotal > 0) {
+        <div class="tile" [class.tile-bad]="summary().expectedHits < summary().expectedTotal">
+          <span class="tile-n">{{ summary().expectedHits }} / {{ summary().expectedTotal }}</span>
+          <span class="tile-l">found the expected source</span>
+        </div>
+      }
+    </section>
+
+    <section aria-labelledby="results-title" class="results">
+      <div class="results-head">
+        <h2 id="results-title">Results</h2>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-sm" [disabled]="!hasResults()" (click)="copyCsv()">Copy as CSV</button>
+        <button type="button" class="btn btn-sm" [disabled]="!hasResults()" (click)="downloadJson()">Download JSON</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <caption class="sr-only">Search results for each question</caption>
+          <thead>
+            <tr>
+              <th scope="col">Question</th>
+              <th scope="col" class="num">Found</th>
+              <th scope="col" class="num">Kept</th>
+              <th scope="col" class="num">Best</th>
+              <th scope="col" class="num">Weakest kept</th>
+              <th scope="col" class="num">At or above {{ percent(threshold()) }}</th>
+              <th scope="col">Expected source</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track $index; let i = $index) {
+              <tr [class.row-open]="open() === i">
+                <th scope="row" class="name">
+                  @if (row.result) {
+                    <button type="button" class="link" [attr.aria-expanded]="open() === i" (click)="toggle(i)">{{ row.question.text }}</button>
+                  } @else {
+                    {{ row.question.text }}
+                  }
+                  @switch (row.state) {
+                    @case ('running') {
+                      <span class="state"><span class="spinner" aria-hidden="true"></span> Searching</span>
+                    }
+                    @case ('waiting') {
+                      <span class="state muted">Waiting</span>
+                    }
+                    @case ('failed') {
+                      <span class="row-error">{{ row.error }}</span>
+                    }
+                  }
+                </th>
+                @if (row.result) {
+                  <td class="num">{{ format(row.result.candidates) }}</td>
+                  <td class="num">
+                    <span class="badge" [class.badge-ok]="row.result.sources.length > 0" [class.badge-danger]="row.result.sources.length === 0">
+                      {{ format(row.result.sources.length) }}
+                    </span>
+                  </td>
+                  <td class="num">
+                    <span class="bar" [style.--w]="(best(row) ?? 0) * 100 + '%'" aria-hidden="true"></span>
+                    {{ percent(best(row)) }}
+                  </td>
+                  <td class="num">{{ percent(weakest(row)) }}</td>
+                  <td class="num">{{ atThreshold(row) }}</td>
+                  <td>
+                    @if (outcome(row); as o) {
+                      @if (o.kind !== 'none') {
+                        <span class="badge" [class.badge-ok]="hit(o)" [class.badge-danger]="miss(o)">{{ hit(o) ? 'Found' : 'Missed' }}</span>
+                        <span class="outcome">{{ describe(o) }}</span>
+                      }
+                    } @else {
+                      <span class="muted">none set</span>
+                    }
+                  </td>
+                } @else {
+                  <td colspan="6" class="muted"></td>
+                }
+              </tr>
+              @if (open() === i && row.result; as result) {
+                <tr class="detail-row">
+                  <td colspan="7">
+                    <div class="detail">
+                      <p>
+                        <a [routerLink]="['/search']" [queryParams]="{ version: version(), q: row.question.text }">Open in Search check</a>
+                        to read the text of each source.
+                      </p>
+                      @if (result.sources.length === 0) {
+                        <p class="muted">Nothing was kept. The assistant would answer that it could not find this, without calling the model.</p>
+                      } @else {
+                        <h3>Kept</h3>
+                        <ul class="list">
+                          @for (s of result.sources; track s.chunkId) {
+                            <li>
+                              <span class="badge badge-signal mono">{{ s.label }}</span> {{ s.citation }}
+                              <span class="score">{{ percent(s.score) }}</span>
+                            </li>
+                          }
+                        </ul>
+                      }
+                      @if (result.dropped.length > 0) {
+                        <h3>Left out</h3>
+                        <ul class="list">
+                          @for (d of result.dropped; track d.chunkId) {
+                            <li>
+                              {{ d.citation }}
+                              <span class="score">{{ percent(d.score) }}</span>
+                              <span class="muted">{{ d.reason }}</span>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</main>

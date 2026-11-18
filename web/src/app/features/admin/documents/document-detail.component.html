@@ -1,0 +1,71 @@
+<app-modal [open]="open()" [heading]="document()?.fileName ?? ''" [wide]="true" (closed)="closed.emit()">
+  @if (document(); as d) {
+    <dl class="meta">
+      <div><dt>Version</dt><dd>{{ d.version.toUpperCase() }}</dd></div>
+      <div><dt>Title</dt><dd>{{ d.title }}</dd></div>
+      <div>
+        <dt>Status</dt>
+        <dd>
+          <span class="badge" [class.badge-ok]="d.status === 'Ready'" [class.badge-danger]="d.status === 'Failed'" [class.badge-warn]="d.status === 'Processing'">{{ d.status }}</span>
+        </dd>
+      </div>
+      <div><dt>Chunks</dt><dd>{{ format(d.chunkCount) }}</dd></div>
+      <div><dt>Uploaded</dt><dd>{{ date(d.uploadedAt) }}</dd></div>
+      <div><dt>Ready</dt><dd>{{ d.readyAt ? date(d.readyAt) : 'not yet' }}</dd></div>
+    </dl>
+
+    @if (d.error) {
+      <div class="notice notice-error" role="alert">
+        <div class="err">
+          <strong>Processing failed</strong>
+          <span>{{ d.error }}</span>
+          <span class="muted">Upload the file again to retry.</span>
+        </div>
+      </div>
+    }
+
+    @if (d.status === 'Processing') {
+      <div class="notice notice-info" role="status">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>The document is still being split and embedded. Chunks appear when it is ready.</span>
+      </div>
+    } @else if (d.status === 'Ready') {
+      <div class="toolbar">
+        <p class="muted hint">A source in an answer, such as “part 12”, is the chunk with that number below.</p>
+        <span class="muted">Page {{ page() + 1 }}</span>
+      </div>
+
+      @if (error(); as e) {
+        <app-error-notice [error]="e">
+          <button type="button" class="btn btn-sm btn-primary" (click)="load()">Try again</button>
+        </app-error-notice>
+      } @else if (loading() && chunks().length === 0) {
+        <div class="loading" role="status"><span class="spinner" aria-hidden="true"></span> Loading chunks</div>
+      } @else if (chunks().length === 0) {
+        <p class="empty">This document has no stored chunks.</p>
+      } @else {
+        <ol class="chunks" [attr.start]="page() * pageSize + 1" [class.dim]="loading()">
+          @for (c of chunks(); track c.id) {
+            <li>
+              <details>
+                <summary>
+                  <span class="badge badge-signal">Part {{ c.ordinal + 1 }}</span>
+                  <span class="c-title">{{ preview(c.content) }}</span>
+                  <span class="muted">{{ format(c.estTokens) }} tokens</span>
+                </summary>
+                <div class="body">
+                  <pre>{{ c.content }}</pre>
+                  <p class="muted tech">Embedding model {{ c.embeddingModel || 'n/a' }}</p>
+                </div>
+              </details>
+            </li>
+          }
+        </ol>
+        <div class="pager">
+          <button type="button" class="btn btn-sm" [disabled]="page() === 0 || loading()" (click)="goTo(page() - 1)">Previous</button>
+          <button type="button" class="btn btn-sm" [disabled]="!hasMore() || loading()" (click)="goTo(page() + 1)">Next</button>
+        </div>
+      }
+    }
+  }
+</app-modal>

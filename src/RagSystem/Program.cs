@@ -1,5 +1,6 @@
 using FluentValidation;
 using RagSystem.ApiDocs;
+using RagSystem.Chat;
 using RagSystem.Database;
 using RagSystem.Documents.Services;
 using RagSystem.Documents.Workers;
@@ -9,11 +10,17 @@ using RagSystem.Ingestion.Services;
 using RagSystem.Ingestion.Settings;
 using RagSystem.Embeddings;
 using RagSystem.Gemini;
+using RagSystem.Observability;
 using RagSystem.Ollama;
 using RagSystem.Retrieval;
 using RagSystem.Validation.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Local secrets (for example Gemini:ApiKey) live in appsettings.Local.json, which git ignores. Development only, so tests and
+// production never read it; anywhere else the key comes from the environment variable Gemini__ApiKey.
+if (builder.Environment.IsDevelopment())
+    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
 // Chunking values come from the "Chunking" section of appsettings.json. A wrong value stops the app at start.
 var chunking = (builder.Configuration.GetSection(ChunkingSettings.SectionName).Get<ChunkingSettings>()
@@ -40,6 +47,8 @@ builder.Services.AddOllama(builder.Configuration);
 builder.Services.AddGemini(builder.Configuration);
 builder.Services.AddEmbeddings(builder.Configuration);
 builder.Services.AddRetrieval(builder.Configuration);
+builder.Services.AddChat(builder.Configuration);
+builder.Services.AddObservability(builder.Configuration); // traces to LangSmith through OpenTelemetry; off until LangSmith:ApiKey is set
 
 var app = builder.Build();
 

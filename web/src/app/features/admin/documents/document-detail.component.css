@@ -1,0 +1,109 @@
+.meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+.meta div {
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+dt {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+dd {
+  margin: 0;
+  font-weight: 600;
+}
+.err {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.toolbar .field {
+  width: min(100%, 260px);
+}
+.loading,
+.empty {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 1.4rem 1rem;
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius-m);
+  color: var(--ink-2);
+}
+.chunks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.chunks.dim {
+  opacity: 0.55;
+}
+details {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-s);
+}
+summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+}
+.c-title {
+  font-weight: 600;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 0.65rem 0.65rem;
+}
+.body p {
+  margin: 0;
+}
+.entities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+pre {
+  margin: 0;
+  padding: 0.65rem;
+  max-height: 320px;
+  overflow: auto;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+.extra {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.15rem 0.8rem;
+  font-size: 0.82rem;
+}
+.tech {
+  font-size: 0.78rem;
+}
+.pager {
+  display: flex;
+  justify-content: space-between;
+}

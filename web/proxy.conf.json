@@ -1,0 +1,13 @@
+{
+  "/api": {
+    "target": "http://localhost:5289",
+    "secure": false,
+    "changeOrigin": false,
+    "timeout": 130000,
+    "proxyTimeout": 130000
+  },
+  "/health": {
+    "target": "http://localhost:5289",
+    "secure": false
+  }
+}

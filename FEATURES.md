@@ -32,7 +32,7 @@ Each area folder is split by **what a file is**, with the same folder names ever
 | `Settings` | A section of `appsettings.json` as a class. |
 | `Exceptions` | Our own exception types. |
 
-Areas: `Controllers` (the HTTP endpoints), `Documents` (upload, list, delete, background storing), `Ingestion` (reading and chunking files; `Markdown\` and `OpenApi\` hold the two chunkers), `Database` (context, `Entities`, `Migrations`), `Ollama` (embedding client and batching), `Validation` (FluentValidation: `Validators`), `Http` (shared answer helpers), `Text` (token estimate), `ApiDocs` (Swagger).
+Areas: `Chat` (prompt, answer parser, rewrite, conversations, the chat pipeline), `Gemini` (chat client and the one-at-a-time gate), `Controllers` (the HTTP endpoints), `Documents` (upload, list, delete, background storing), `Ingestion` (reading and chunking files; `Markdown\` and `OpenApi\` hold the two chunkers), `Database` (context, `Entities`, `Migrations`), `Ollama` (embedding client and batching), `Validation` (FluentValidation: `Validators`), `Http` (shared answer helpers), `Text` (token estimate), `ApiDocs` (Swagger).
 
 ## Working rules
 
@@ -89,14 +89,14 @@ Areas: `Controllers` (the HTTP endpoints), `Documents` (upload, list, delete, ba
 
 | ID | Feature | Needs | What it does / done when | Status |
 |---|---|---|---|---|
-| F20 | Gemini chat client | F12 | **Changed 2026-11-17: the Gemini API replaces the local Qwen chat model** (embeddings stay on local Ollama). Calls Gemini with the key from an environment variable, returns text, token counts and whether it was cut off. Details when we reach it | todo |
-| F21 | Generation gate | F20 | One generation at a time (semaphore) shared by chat and rewrite; waiting counts against the timeout | todo |
-| F22 | Prompt builder | F19 | System rules + documentation context + question; documentation is marked as data; asks the model to end with `Sources: S1, S3` | todo |
-| F23 | Answer parser | F22 | Splits off the `Sources:` line, builds citations from the sources named (document title + part number), handles `none`, missing line (cite first 3, never cache) and empty answer (502) | todo |
-| F24 | Error mapping | F20, F03 | Ollama failures become problem+json: 503 `llm_unavailable` (down, loading, busy, timeout) with `Retry-After`, 502 `llm_error` (model missing) | todo |
-| F25 | Basic chat endpoint | F19, F21, F22, F23, F24 | `POST /api/{version}/chat`: validate, retrieve, answer, citations. No relevant chunks = "not covered" without calling the model | todo |
-| F26 | Conversations and history | F25, F11 | Tables `conversations`, `messages`; saves each turn; loads up to 6 turns / 2,000 tokens; 404 for a foreign conversation; `GET /api/{version}/conversations/{id}/messages` | todo |
-| F27 | Query rewrite | F21, F26 | Follow-up question becomes a standalone question (last 3 turns, 10 s timeout, fallback: previous question + current) | todo |
+| F20 | Gemini chat client | F12 | Calls Gemini (key from `Gemini__ApiKey`, never appsettings) through the `IChatClient` interface, with the model, output limit and thinking budget per call. Returns text, input / output / thinking token counts and whether it was cut off. Failures use the F12 kinds (fatal / rate-limited / transient) | in review |
+| F21 | Generation gate | F20 | One generation at a time (semaphore, `Chat:MaxConcurrentGenerations`) shared by chat and rewrite; waiting counts against the timeout | in review |
+| F22 | Prompt builder | F19 | System rules + documentation context + question; documentation is marked as data; asks the model to end with `Sources: S1, S3` | in review |
+| F23 | Answer parser | F22 | Splits off the `Sources:` line, builds citations from the sources named (document title + part number), handles `none`, missing line (cite first 3, never cache) and empty answer (502) | in review |
+| F24 | Error mapping | F20, F03 | Model failures (Gemini or embeddings) become problem+json: 503 `llm_unavailable` (down, busy, rate-limited, timeout) with `Retry-After`, 502 `llm_error` (bad key, model missing, rejected request), 502 `empty_answer` | in review |
+| F25 | Basic chat endpoint | F19, F21, F22, F23, F24 | `POST /api/{version}/chat`: validate, retrieve, answer, citations. No relevant chunks = "not covered" without calling the model | in review |
+| F26 | Conversations and history | F25, F11 | Tables `conversations`, `messages`; saves each turn; loads up to 6 turns / 2,000 tokens; 404 for a foreign conversation; `GET /api/{version}/conversations/{id}/messages` | in review |
+| F27 | Query rewrite | F21, F26 | Follow-up question becomes a standalone question (last 3 turns, 10 s timeout, fallback: previous question + current) | in review |
 | F28 | Retrieval tuning | F25 | Re-measure the minimum score and duplicate threshold on real Qwen3 scores; check answer quality on real questions; if chunks lack context, revisit chunk size, overlap and chunk header | todo |
 
 ## F. Security and limits

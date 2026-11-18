@@ -1,0 +1,143 @@
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: 66ch;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+}
+.mono-area {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+.controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.threshold {
+  margin-left: auto;
+  width: 11rem;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.6rem;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+}
+.tile-bad {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+.tile-n {
+  font-size: 1.35rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.tile-l {
+  font-size: 0.85rem;
+  color: var(--ink-3);
+}
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.results-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.spacer {
+  flex: 1;
+}
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.6rem;
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+.row-error {
+  display: block;
+  color: var(--danger);
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+.bar {
+  display: inline-block;
+  width: 3.2rem;
+  height: 0.5rem;
+  margin-right: 0.4rem;
+  border-radius: 99px;
+  background: linear-gradient(to right, var(--signal) var(--w), var(--surface-3) var(--w));
+  vertical-align: middle;
+}
+.outcome {
+  margin-left: 0.4rem;
+  font-size: 0.88rem;
+}
+.row-open > * {
+  background: var(--surface-2);
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.3rem 0.2rem 0.6rem;
+}
+.detail h3 {
+  font-size: 0.9rem;
+}
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.score {
+  margin: 0 0.4rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--signal-ink);
+}
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--signal-ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}

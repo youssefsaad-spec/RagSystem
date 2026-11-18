@@ -1,0 +1,73 @@
+@let r = report();
+<div class="report">
+  <div class="summary">
+    @if (r.valid) {
+      <span class="badge badge-ok">Valid</span>
+    } @else {
+      <span class="badge badge-danger">Has errors</span>
+    }
+    @if (r.title) {
+      <span class="badge">{{ r.title }}</span>
+    }
+    @if (r.chunks.length > 0) {
+      <span class="muted">{{ format(r.chunks.length) }} chunks, about {{ format(totalTokens()) }} tokens</span>
+    }
+  </div>
+
+  @if (r.errors.length > 0) {
+    <section aria-label="Errors">
+      <h4 class="danger">Errors ({{ r.errors.length }})</h4>
+      <ul class="issues">
+        @for (i of r.errors; track $index) {
+          <li>
+            <span class="mono code">{{ i.code }}</span>
+            <span>{{ i.message }}</span>
+            @if (i.line !== null) {
+              <span class="muted line">line {{ i.line }}</span>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (r.warnings.length > 0) {
+    <section aria-label="Warnings">
+      <h4 class="warn">Warnings ({{ r.warnings.length }})</h4>
+      <ul class="issues">
+        @for (i of r.warnings; track $index) {
+          <li>
+            <span class="mono code">{{ i.code }}</span>
+            <span>{{ i.message }}</span>
+            @if (i.line !== null) {
+              <span class="muted line">line {{ i.line }}</span>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (r.chunks.length > 0) {
+    <section aria-label="Chunks">
+      <h4>Chunks that would be stored</h4>
+      <ol class="chunks">
+        @for (c of preview(); track c.ordinal) {
+          <li>
+            <details>
+              <summary>
+                <span class="badge badge-signal">Part {{ c.ordinal + 1 }}</span>
+                <span class="c-title">{{ heading(c.text) }}</span>
+                <span class="muted">{{ format(c.estTokens) }} tokens</span>
+              </summary>
+              <pre>{{ c.text }}</pre>
+            </details>
+          </li>
+        }
+      </ol>
+      @if (hiddenChunks() > 0) {
+        <p class="muted">And {{ format(hiddenChunks()) }} more chunks not shown here.</p>
+      }
+    </section>
+  }
+</div>
